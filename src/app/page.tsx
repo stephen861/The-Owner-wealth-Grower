@@ -8,6 +8,7 @@ import {
   labelFor,
   nights,
   FEE_TYPES,
+  EXCHANGE_NETWORKS,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export default async function DashboardPage() {
   const now = new Date();
   const year = now.getFullYear();
 
-  const [timeshares, pointsAccounts, reservations, fees, deposits, perks] = await Promise.all([
+  const [timeshares, pointsAccounts, reservations, fees, deposits, perks, memberships] =
+    await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
     prisma.reservation.findMany({
@@ -35,7 +37,8 @@ export default async function DashboardPage() {
       orderBy: { expiresAt: "asc" },
       include: { membership: true, timeshare: true },
     }),
-    prisma.membershipPerk.findMany(),
+    prisma.membershipPerk.findMany({ include: { membership: true } }),
+    prisma.exchangeMembership.findMany({ where: { active: true } }),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -52,6 +55,50 @@ export default async function DashboardPage() {
     (s, p) => s + Math.max(0, (p.value ?? 0) - p.used),
     0,
   );
+
+  // Unified upcoming-dates feed: membership renewals + reward/credit
+  // expirations within the next 120 days, soonest first.
+  const WINDOW = 120;
+  type RenewalItem = {
+    key: string;
+    kind: "renewal" | "reward";
+    label: string;
+    sub: string;
+    when: Date;
+    days: number;
+    amount: number | null;
+  };
+  const renewals: RenewalItem[] = [];
+  for (const m of memberships) {
+    const d = daysUntil(m.expiresAt);
+    if (m.expiresAt && d != null && d <= WINDOW) {
+      renewals.push({
+        key: `m-${m.id}`,
+        kind: "renewal",
+        label: `${m.name} renewal`,
+        sub: labelFor(EXCHANGE_NETWORKS, m.network),
+        when: m.expiresAt,
+        days: d,
+        amount: m.membershipFee,
+      });
+    }
+  }
+  for (const p of perks) {
+    const d = daysUntil(p.expiresAt);
+    const remaining = (p.value ?? 0) - p.used;
+    if (p.expiresAt && d != null && d <= WINDOW && remaining > 0) {
+      renewals.push({
+        key: `p-${p.id}`,
+        kind: "reward",
+        label: `${p.name} expires`,
+        sub: p.membership.name,
+        when: p.expiresAt,
+        days: d,
+        amount: remaining,
+      });
+    }
+  }
+  renewals.sort((a, b) => a.days - b.days);
 
   return (
     <div>
@@ -241,6 +288,60 @@ export default async function DashboardPage() {
                     <td>{formatDate(d.expiresAt)}</td>
                     <td className="right">
                       <span className="badge amber">{dl}d left</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Membership renewals & expiring rewards</h2>
+          <Link className="btn ghost small" href="/exchanges">
+            Manage memberships
+          </Link>
+        </div>
+        {renewals.length === 0 ? (
+          <div className="empty">Nothing renewing or expiring in the next {WINDOW} days.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Program</th>
+                <th>Date</th>
+                <th className="right">Amount</th>
+                <th className="right">Countdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {renewals.map((r) => {
+                const overdue = r.days < 0;
+                const soon = r.days >= 0 && r.days <= 30;
+                return (
+                  <tr key={r.key}>
+                    <td>
+                      <strong>{r.label}</strong>
+                      <div className="subnote">
+                        {r.kind === "renewal" ? "Membership renewal" : "Reward / credit"}
+                      </div>
+                    </td>
+                    <td>{r.sub}</td>
+                    <td>{formatDate(r.when)}</td>
+                    <td className="right">
+                      {r.amount != null ? formatCurrency(r.amount) : "—"}
+                    </td>
+                    <td className="right">
+                      <span className={`badge ${overdue ? "red" : soon ? "amber" : "blue"}`}>
+                        {overdue
+                          ? `${Math.abs(r.days)}d ago`
+                          : r.days === 0
+                            ? "Today"
+                            : `${r.days}d`}
+                      </span>
                     </td>
                   </tr>
                 );

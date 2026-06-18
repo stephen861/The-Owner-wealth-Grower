@@ -13,6 +13,12 @@ async function main() {
   await prisma.timeshare.deleteMany();
 
   const year = new Date().getFullYear();
+  // Helper: a date N days from now (for demo renewal/expiry windows).
+  const inDays = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return d;
+  };
 
   const wyndham = await prisma.timeshare.create({
     data: {
@@ -198,7 +204,7 @@ async function main() {
       memberNumber: "1119-22334455",
       tier: "Executive",
       joinDate: new Date("2012-05-01"),
-      expiresAt: new Date(`${year}-05-31`),
+      expiresAt: inDays(40),
       membershipFee: 130,
       notes: "Executive membership — 2% reward on Costco Travel packages plus member savings.",
       perks: {
@@ -215,7 +221,7 @@ async function main() {
             category: "CREDIT",
             value: 200,
             used: 0,
-            expiresAt: new Date(`${year}-12-31`),
+            expiresAt: inDays(25),
             notes: "Included with Hawaii package booking.",
           },
         ],
@@ -230,7 +236,7 @@ async function main() {
       memberNumber: "101-998877665",
       tier: "Plus",
       joinDate: new Date("2019-02-10"),
-      expiresAt: new Date(`${year}-02-28`),
+      expiresAt: inDays(95),
       membershipFee: 110,
       notes: "Plus membership — Sam's Cash on travel bookings via Sam's Club Travel.",
       perks: {

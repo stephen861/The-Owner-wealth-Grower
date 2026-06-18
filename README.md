@@ -14,12 +14,21 @@ required; your data lives in a local SQLite file.
   allotment, purchase info, and notes.
 - **Points & Benefits** — point balances per use year (allotted, used, banked, borrowed,
   available, expiration) plus membership tier perks with usage allowances you can redeem.
+- **Exchanges & Memberships** — exchange networks and travel clubs (RCI, Interval
+  International, Westgate Cruise & Travel, Costco Travel, Sam's Club Travel, DAE, SFX):
+  - **Deposits** — weeks/points deposited for trading, with trading power, points value,
+    and expiry (use-it-or-lose-it flags).
+  - **Rewards & credits** — dollar-value rewards/credits/discounts (Costco Executive 2%
+    reward, Sam's Cash, travel credits) with used/remaining balances and an inline
+    "Use" action to record redemptions.
 - **Reservations** — upcoming and past stays with nights, points/cash spent, guests,
   confirmation numbers, guest certificates, and status tracking.
 - **Fees & Finances** — maintenance fees, special assessments, club dues, loans and
   taxes, with due dates, overdue flags, and paid/unpaid tracking.
 - **Dashboard** — portfolio snapshot: timeshare count, available points, annual
-  allotment, outstanding fees, upcoming trips, and fees coming due.
+  allotment, outstanding fees, exchange deposits, travel rewards balance, upcoming
+  trips, fees coming due, expiring deposits, and **membership renewals & expiring
+  rewards** in the next 120 days.
 
 ## Getting started
 
@@ -55,11 +64,14 @@ To start from an empty database instead of sample data, run
 
 | Model           | Purpose                                                          |
 | --------------- | ---------------------------------------------------------------- |
-| `Timeshare`     | An owned contract/membership (parent of everything else)         |
-| `PointsAccount` | Point balance for one use year on a timeshare                    |
-| `Benefit`       | A membership perk/tier benefit with optional usage allowance     |
-| `Reservation`   | A booked or planned stay                                         |
-| `Fee`           | A financial obligation (maintenance, assessment, dues, loan…)    |
+| `Timeshare`          | An owned contract/membership (parent of everything else)    |
+| `PointsAccount`      | Point balance for one use year on a timeshare               |
+| `Benefit`            | A membership perk/tier benefit with optional usage allowance|
+| `ExchangeMembership` | An exchange network or travel club (RCI, Interval, Costco…) |
+| `ExchangeDeposit`    | A week/points block deposited into an exchange for trading  |
+| `MembershipPerk`     | A dollar-value reward/credit/discount on a membership       |
+| `Reservation`        | A booked or planned stay                                    |
+| `Fee`                | A financial obligation (maintenance, assessment, dues, loan…)|
 
 The database file (`prisma/dev.db`) is git-ignored — your data stays local.
 
