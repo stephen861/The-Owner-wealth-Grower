@@ -4,6 +4,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Clear existing data (idempotent seed for local dev).
+  await prisma.exchangeDeposit.deleteMany();
+  await prisma.exchangeMembership.deleteMany();
   await prisma.fee.deleteMany();
   await prisma.reservation.deleteMany();
   await prisma.benefit.deleteMany();
@@ -115,6 +117,113 @@ async function main() {
         ],
       },
     },
+  });
+
+  const westgate = await prisma.timeshare.create({
+    data: {
+      name: "Westgate Lakes Resort & Spa",
+      brand: "Westgate",
+      resort: "Westgate Lakes Resort & Spa",
+      location: "Orlando, FL",
+      ownershipType: "DEEDED_WEEK",
+      contractNumber: "WG-220194",
+      memberNumber: "WG-77310",
+      deededWeek: "Week 26 (floating summer)",
+      unitType: "2BR Villa",
+      useYear: "ANNUAL",
+      purchaseDate: new Date("2014-07-21"),
+      purchasePrice: 15900,
+      notes: "Deeded week, deposited annually into RCI. Member of Westgate Cruise & Travel.",
+      pointsAccounts: {
+        create: [
+          {
+            useYear: year,
+            allotted: 0,
+            used: 0,
+            banked: 0,
+            borrowed: 0,
+          },
+        ],
+      },
+    },
+  });
+
+  // Exchange networks & travel memberships
+  const rci = await prisma.exchangeMembership.create({
+    data: {
+      name: "RCI Weeks",
+      network: "RCI",
+      memberNumber: "5012-998143",
+      tier: "RCI Platinum",
+      timeshareId: westgate.id,
+      joinDate: new Date("2014-08-01"),
+      expiresAt: new Date(`${year + 2}-08-01`),
+      membershipFee: 154,
+      notes: "Westgate week deposited here each year for exchanges.",
+    },
+  });
+
+  const interval = await prisma.exchangeMembership.create({
+    data: {
+      name: "Interval International",
+      network: "INTERVAL",
+      memberNumber: "II-44120897",
+      tier: "Interval Gold",
+      timeshareId: marriott.id,
+      joinDate: new Date("2016-03-05"),
+      expiresAt: new Date(`${year + 1}-03-05`),
+      membershipFee: 89,
+      notes: "Marriott Grande Vista enrolled for II exchanges.",
+    },
+  });
+
+  await prisma.exchangeMembership.create({
+    data: {
+      name: "Westgate Cruise & Travel Collection",
+      network: "WESTGATE_TRAVEL",
+      memberNumber: "WCT-330451",
+      tier: "Preferred",
+      timeshareId: westgate.id,
+      joinDate: new Date("2018-01-15"),
+      membershipFee: 199,
+      notes: "Discounted cruises and travel benefits through Westgate.",
+    },
+  });
+
+  // Deposits / trade credits sitting in the exchanges
+  await prisma.exchangeDeposit.createMany({
+    data: [
+      {
+        membershipId: rci.id,
+        timeshareId: westgate.id,
+        depositType: "WEEK",
+        description: `${year} Week 26 — Westgate Lakes 2BR`,
+        tradingPower: 38,
+        depositDate: new Date(`${year - 1}-09-01`),
+        expiresAt: new Date(`${year + 1}-09-01`),
+        status: "AVAILABLE",
+      },
+      {
+        membershipId: rci.id,
+        timeshareId: westgate.id,
+        depositType: "WEEK",
+        description: `${year - 1} Week 26 — Westgate Lakes 2BR`,
+        tradingPower: 31,
+        depositDate: new Date(`${year - 2}-09-01`),
+        expiresAt: new Date(`${year}-08-15`),
+        status: "AVAILABLE",
+      },
+      {
+        membershipId: interval.id,
+        timeshareId: marriott.id,
+        depositType: "WEEK",
+        description: `${year} Week 12 — Marriott Grande Vista 2BR`,
+        tradingPower: 42,
+        depositDate: new Date(`${year}-01-10`),
+        expiresAt: new Date(`${year + 2}-01-10`),
+        status: "AVAILABLE",
+      },
+    ],
   });
 
   // Reservations

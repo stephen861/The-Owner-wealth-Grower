@@ -7,6 +7,7 @@ const links = [
   { href: "/", label: "Dashboard", icon: "📊" },
   { href: "/timeshares", label: "Timeshares", icon: "🏖️" },
   { href: "/points", label: "Points & Benefits", icon: "⭐" },
+  { href: "/exchanges", label: "Exchanges", icon: "🔁" },
   { href: "/reservations", label: "Reservations", icon: "🗓️" },
   { href: "/fees", label: "Fees & Finances", icon: "💳" },
 ];

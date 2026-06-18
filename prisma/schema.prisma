@@ -33,10 +33,55 @@ model Timeshare {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  pointsAccounts PointsAccount[]
-  benefits       Benefit[]
-  reservations   Reservation[]
-  fees           Fee[]
+  pointsAccounts      PointsAccount[]
+  benefits            Benefit[]
+  reservations        Reservation[]
+  fees                Fee[]
+  exchangeMemberships ExchangeMembership[]
+  exchangeDeposits    ExchangeDeposit[]
+}
+
+// An external exchange network or travel-benefit membership the owner
+// belongs to: RCI, Interval International, Westgate Cruise & Travel, etc.
+// Optionally linked to the owned timeshare that feeds it.
+model ExchangeMembership {
+  id            String   @id @default(cuid())
+  name          String // friendly name, e.g. "RCI Weeks"
+  network       String   @default("RCI") // RCI | INTERVAL | WESTGATE_TRAVEL | DAE | SFX | OTHER
+  memberNumber  String?
+  tier          String? // e.g. "RCI Platinum", "Interval Gold"
+  timeshareId   String? // the owned contract this membership is tied to
+  timeshare     Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  joinDate      DateTime?
+  expiresAt     DateTime?
+  membershipFee Float? // annual membership fee
+  active        Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deposits ExchangeDeposit[]
+}
+
+// A week or block of points deposited into an exchange network that can
+// be traded for other stays. Tracks trading power and expiration — the
+// things owners most often lose track of.
+model ExchangeDeposit {
+  id           String   @id @default(cuid())
+  membershipId String
+  membership   ExchangeMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  timeshareId  String? // source ownership the deposit came from
+  timeshare    Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  depositType  String   @default("WEEK") // WEEK | POINTS
+  description  String? // e.g. "2025 Week 26 — Bonnet Creek 2BR"
+  tradingPower Float? // trading power / exchange value
+  pointsValue  Int? // for points-based deposits
+  depositDate  DateTime?
+  expiresAt    DateTime? // when the deposit / trade credit expires
+  status       String   @default("AVAILABLE") // AVAILABLE | USED | EXPIRED
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // Points balance for a given use-year on a timeshare.

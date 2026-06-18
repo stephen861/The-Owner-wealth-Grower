@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const year = now.getFullYear();
 
-  const [timeshares, pointsAccounts, reservations, fees] = await Promise.all([
+  const [timeshares, pointsAccounts, reservations, fees, deposits] = await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
     prisma.reservation.findMany({
@@ -30,6 +30,11 @@ export default async function DashboardPage() {
       orderBy: { dueDate: "asc" },
       include: { timeshare: true },
     }),
+    prisma.exchangeDeposit.findMany({
+      where: { status: "AVAILABLE" },
+      orderBy: { expiresAt: "asc" },
+      include: { membership: true, timeshare: true },
+    }),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -38,6 +43,10 @@ export default async function DashboardPage() {
   );
   const annualPoints = timeshares.reduce((s, t) => s + (t.annualPoints ?? 0), 0);
   const outstanding = fees.reduce((s, f) => s + f.amount, 0);
+  const expiringDeposits = deposits.filter((d) => {
+    const dl = daysUntil(d.expiresAt);
+    return dl != null && dl >= 0 && dl <= 90;
+  });
 
   return (
     <div>
@@ -85,6 +94,15 @@ export default async function DashboardPage() {
           <div className="label">Outstanding fees</div>
           <div className="value">{formatCurrency(outstanding)}</div>
           <div className="sub">{fees.length} unpaid</div>
+        </div>
+        <div className="card">
+          <div className="label">Exchange deposits</div>
+          <div className="value">{deposits.length}</div>
+          <div className="sub">
+            {expiringDeposits.length > 0
+              ? `${expiringDeposits.length} expiring ≤ 90d`
+              : "available to trade"}
+          </div>
         </div>
       </div>
 
@@ -172,6 +190,47 @@ export default async function DashboardPage() {
                       <span className={`badge ${overdue ? "red" : soon ? "amber" : ""}`}>
                         {overdue ? `${Math.abs(d!)}d overdue` : soon ? `in ${d}d` : "upcoming"}
                       </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Exchange deposits expiring soon</h2>
+          <Link className="btn ghost small" href="/exchanges">
+            All exchanges
+          </Link>
+        </div>
+        {expiringDeposits.length === 0 ? (
+          <div className="empty">No deposits expiring in the next 90 days.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Deposit</th>
+                <th>Network</th>
+                <th>Expires</th>
+                <th className="right">Countdown</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expiringDeposits.map((d) => {
+                const dl = daysUntil(d.expiresAt);
+                return (
+                  <tr key={d.id}>
+                    <td>
+                      <strong>{d.description ?? "Deposit"}</strong>
+                      {d.timeshare ? <div className="subnote">{d.timeshare.name}</div> : null}
+                    </td>
+                    <td>{d.membership.name}</td>
+                    <td>{formatDate(d.expiresAt)}</td>
+                    <td className="right">
+                      <span className="badge amber">{dl}d left</span>
                     </td>
                   </tr>
                 );

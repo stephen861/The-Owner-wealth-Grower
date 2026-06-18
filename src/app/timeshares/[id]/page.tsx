@@ -11,6 +11,8 @@ import {
   OWNERSHIP_TYPES,
   FEE_TYPES,
   RESERVATION_STATUS,
+  EXCHANGE_NETWORKS,
+  DEPOSIT_STATUS,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,8 @@ export default async function TimeshareDetailPage({
       benefits: { orderBy: { createdAt: "desc" } },
       reservations: { orderBy: { checkIn: "desc" } },
       fees: { orderBy: { dueDate: "asc" } },
+      exchangeMemberships: true,
+      exchangeDeposits: { orderBy: { expiresAt: "asc" }, include: { membership: true } },
     },
   });
   if (!t) notFound();
@@ -246,6 +250,69 @@ export default async function TimeshareDetailPage({
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Exchanges & memberships</h2>
+          <Link className="btn ghost small" href="/exchanges">
+            Manage exchanges
+          </Link>
+        </div>
+        {t.exchangeMemberships.length === 0 && t.exchangeDeposits.length === 0 ? (
+          <div className="empty">No exchange memberships or deposits linked to this timeshare.</div>
+        ) : (
+          <>
+            {t.exchangeMemberships.length > 0 ? (
+              <table style={{ marginBottom: t.exchangeDeposits.length > 0 ? 16 : 0 }}>
+                <thead>
+                  <tr>
+                    <th>Membership</th>
+                    <th>Network</th>
+                    <th>Member #</th>
+                    <th>Tier</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.exchangeMemberships.map((m) => (
+                    <tr key={m.id}>
+                      <td>{m.name}</td>
+                      <td>
+                        <span className="badge blue">{labelFor(EXCHANGE_NETWORKS, m.network)}</span>
+                      </td>
+                      <td>{m.memberNumber ?? "—"}</td>
+                      <td>{m.tier ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+            {t.exchangeDeposits.length > 0 ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Deposit</th>
+                    <th>Into</th>
+                    <th>Expires</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.exchangeDeposits.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.description ?? "Deposit"}</td>
+                      <td>{d.membership.name}</td>
+                      <td>{formatDate(d.expiresAt)}</td>
+                      <td>
+                        <span className="badge">{labelFor(DEPOSIT_STATUS, d.status)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : null}
+          </>
         )}
       </div>
     </div>

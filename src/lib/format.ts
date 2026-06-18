@@ -85,6 +85,26 @@ export const BENEFIT_CATEGORIES = [
   { value: "UPGRADE", label: "Upgrade" },
 ];
 
+export const EXCHANGE_NETWORKS = [
+  { value: "RCI", label: "RCI" },
+  { value: "INTERVAL", label: "Interval International" },
+  { value: "WESTGATE_TRAVEL", label: "Westgate Cruise & Travel" },
+  { value: "DAE", label: "Dial An Exchange (DAE)" },
+  { value: "SFX", label: "SFX Preferred Resorts" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const DEPOSIT_TYPES = [
+  { value: "WEEK", label: "Week" },
+  { value: "POINTS", label: "Points" },
+];
+
+export const DEPOSIT_STATUS = [
+  { value: "AVAILABLE", label: "Available" },
+  { value: "USED", label: "Used / traded" },
+  { value: "EXPIRED", label: "Expired" },
+];
+
 export function labelFor(
   list: { value: string; label: string }[],
   value: string | null | undefined,
