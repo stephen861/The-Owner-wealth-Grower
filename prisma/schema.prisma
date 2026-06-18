@@ -61,6 +61,24 @@ model ExchangeMembership {
   updatedAt     DateTime @updatedAt
 
   deposits ExchangeDeposit[]
+  perks    MembershipPerk[]
+}
+
+// A reward, credit, discount or perk attached to a membership.
+// Tracks a dollar value/balance (e.g. Costco Executive 2% reward,
+// Sam's Cash, a travel credit) and how much has been used.
+model MembershipPerk {
+  id           String   @id @default(cuid())
+  membershipId String
+  membership   ExchangeMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  name         String // e.g. "Executive 2% Reward", "Sam's Cash", "Travel credit"
+  category     String   @default("REWARD") // REWARD | CREDIT | DISCOUNT | PERK
+  value        Float? // total dollar value / balance (null for non-monetary perks)
+  used         Float    @default(0) // amount redeemed so far
+  expiresAt    DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // A week or block of points deposited into an exchange network that can

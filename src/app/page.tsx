@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const year = now.getFullYear();
 
-  const [timeshares, pointsAccounts, reservations, fees, deposits] = await Promise.all([
+  const [timeshares, pointsAccounts, reservations, fees, deposits, perks] = await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
     prisma.reservation.findMany({
@@ -35,6 +35,7 @@ export default async function DashboardPage() {
       orderBy: { expiresAt: "asc" },
       include: { membership: true, timeshare: true },
     }),
+    prisma.membershipPerk.findMany(),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -47,6 +48,10 @@ export default async function DashboardPage() {
     const dl = daysUntil(d.expiresAt);
     return dl != null && dl >= 0 && dl <= 90;
   });
+  const rewardsBalance = perks.reduce(
+    (s, p) => s + Math.max(0, (p.value ?? 0) - p.used),
+    0,
+  );
 
   return (
     <div>
@@ -103,6 +108,11 @@ export default async function DashboardPage() {
               ? `${expiringDeposits.length} expiring ≤ 90d`
               : "available to trade"}
           </div>
+        </div>
+        <div className="card">
+          <div className="label">Travel rewards & credits</div>
+          <div className="value">{formatCurrency(rewardsBalance)}</div>
+          <div className="sub">Unredeemed balance</div>
         </div>
       </div>
 

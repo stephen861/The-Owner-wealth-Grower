@@ -89,9 +89,18 @@ export const EXCHANGE_NETWORKS = [
   { value: "RCI", label: "RCI" },
   { value: "INTERVAL", label: "Interval International" },
   { value: "WESTGATE_TRAVEL", label: "Westgate Cruise & Travel" },
+  { value: "COSTCO_TRAVEL", label: "Costco Travel" },
+  { value: "SAMS_TRAVEL", label: "Sam's Club Travel" },
   { value: "DAE", label: "Dial An Exchange (DAE)" },
   { value: "SFX", label: "SFX Preferred Resorts" },
   { value: "OTHER", label: "Other" },
+];
+
+export const PERK_CATEGORIES = [
+  { value: "REWARD", label: "Reward / cash back" },
+  { value: "CREDIT", label: "Travel credit" },
+  { value: "DISCOUNT", label: "Discount" },
+  { value: "PERK", label: "Perk" },
 ];
 
 export const DEPOSIT_TYPES = [

@@ -9,6 +9,7 @@ import {
   EXCHANGE_NETWORKS,
   DEPOSIT_TYPES,
   DEPOSIT_STATUS,
+  PERK_CATEGORIES,
 } from "@/lib/format";
 import {
   createMembership,
@@ -16,6 +17,9 @@ import {
   createDeposit,
   setDepositStatus,
   deleteDeposit,
+  createPerk,
+  usePerk,
+  deletePerk,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +31,7 @@ export default async function ExchangesPage() {
       include: {
         timeshare: true,
         deposits: { orderBy: { expiresAt: "asc" }, include: { timeshare: true } },
+        perks: { orderBy: { createdAt: "desc" } },
       },
     }),
     prisma.timeshare.findMany({ orderBy: { name: "asc" } }),
@@ -38,13 +43,19 @@ export default async function ExchangesPage() {
     const dl = daysUntil(d.expiresAt);
     return dl != null && dl >= 0 && dl <= 90;
   });
+  const rewardsBalance = memberships
+    .flatMap((m) => m.perks)
+    .reduce((s, p) => s + Math.max(0, (p.value ?? 0) - p.used), 0);
 
   return (
     <div>
       <div className="page-head">
         <div>
           <h1>Exchanges & Memberships</h1>
-          <p>RCI, Interval International, travel clubs and the weeks/points you trade.</p>
+          <p>
+            RCI, Interval, Costco &amp; Sam&apos;s Club Travel, travel clubs — your weeks,
+            points, rewards and credits.
+          </p>
         </div>
       </div>
 
@@ -62,6 +73,11 @@ export default async function ExchangesPage() {
           <div className="label">Expiring ≤ 90 days</div>
           <div className="value">{expiringSoon.length}</div>
           <div className="sub">Use them or lose them</div>
+        </div>
+        <div className="card">
+          <div className="label">Rewards & credits</div>
+          <div className="value">{formatCurrency(rewardsBalance)}</div>
+          <div className="sub">Unredeemed balance</div>
         </div>
       </div>
 
@@ -319,6 +335,124 @@ export default async function ExchangesPage() {
               <div className="form-actions">
                 <button className="btn small" type="submit">
                   Add deposit
+                </button>
+              </div>
+            </form>
+          </details>
+
+          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "18px 0" }} />
+
+          <h3 style={{ fontSize: 14, margin: "8px 0" }} className="muted">
+            REWARDS, CREDITS & PERKS
+          </h3>
+          {m.perks.length === 0 ? (
+            <p className="muted">No rewards or credits recorded yet.</p>
+          ) : (
+            <table style={{ marginBottom: 16 }}>
+              <thead>
+                <tr>
+                  <th>Reward / perk</th>
+                  <th>Type</th>
+                  <th className="right">Value</th>
+                  <th className="right">Used</th>
+                  <th className="right">Remaining</th>
+                  <th>Expires</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {m.perks.map((p) => {
+                  const remaining = p.value != null ? Math.max(0, p.value - p.used) : null;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>{p.name}</strong>
+                        {p.notes ? <div className="subnote">{p.notes}</div> : null}
+                      </td>
+                      <td>
+                        <span className="badge">{labelFor(PERK_CATEGORIES, p.category)}</span>
+                      </td>
+                      <td className="right">{p.value != null ? formatCurrency(p.value) : "—"}</td>
+                      <td className="right">{p.value != null ? formatCurrency(p.used) : "—"}</td>
+                      <td className="right">
+                        <strong>{remaining != null ? formatCurrency(remaining) : "—"}</strong>
+                      </td>
+                      <td>{formatDate(p.expiresAt)}</td>
+                      <td className="right">
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          {p.value != null && remaining! > 0 ? (
+                            <form
+                              action={usePerk}
+                              className="inline-form"
+                              style={{ display: "flex", gap: 4 }}
+                            >
+                              <input type="hidden" name="id" value={p.id} />
+                              <input
+                                name="amount"
+                                type="number"
+                                step="0.01"
+                                placeholder="$"
+                                style={{ width: 70, padding: "4px 6px", fontSize: 13 }}
+                              />
+                              <button className="btn ghost small" type="submit" title="Record redemption">
+                                Use
+                              </button>
+                            </form>
+                          ) : null}
+                          <form action={deletePerk} className="inline-form">
+                            <input type="hidden" name="id" value={p.id} />
+                            <button className="btn danger small" type="submit">
+                              ✕
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          <details>
+            <summary className="muted" style={{ cursor: "pointer", marginBottom: 10 }}>
+              + Add a reward / credit / perk
+            </summary>
+            <form action={createPerk} className="grid" style={{ marginTop: 10 }}>
+              <input type="hidden" name="membershipId" value={m.id} />
+              <div className="field">
+                <label>Name *</label>
+                <input name="name" required placeholder="Executive 2% Reward" />
+              </div>
+              <div className="field">
+                <label>Type</label>
+                <select name="category" defaultValue="REWARD">
+                  {PERK_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label>Value ($)</label>
+                <input name="value" type="number" step="0.01" placeholder="(blank for non-cash perk)" />
+              </div>
+              <div className="field">
+                <label>Already used ($)</label>
+                <input name="used" type="number" step="0.01" defaultValue={0} />
+              </div>
+              <div className="field">
+                <label>Expires</label>
+                <input name="expiresAt" type="date" />
+              </div>
+              <div className="field full">
+                <label>Notes</label>
+                <input name="notes" placeholder="2% reward on Costco Travel packages" />
+              </div>
+              <div className="form-actions">
+                <button className="btn small" type="submit">
+                  Add reward / perk
                 </button>
               </div>
             </form>

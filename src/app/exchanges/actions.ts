@@ -89,3 +89,42 @@ export async function deleteDeposit(formData: FormData) {
   await prisma.exchangeDeposit.delete({ where: { id } });
   refresh();
 }
+
+export async function createPerk(formData: FormData) {
+  const membershipId = str(formData.get("membershipId"));
+  const name = str(formData.get("name"));
+  if (!membershipId || !name) return;
+  await prisma.membershipPerk.create({
+    data: {
+      membershipId,
+      name,
+      category: str(formData.get("category")) ?? "REWARD",
+      value: flt(formData.get("value")),
+      used: flt(formData.get("used")) ?? 0,
+      expiresAt: date(formData.get("expiresAt")),
+      notes: str(formData.get("notes")),
+    },
+  });
+  refresh();
+}
+
+// Record additional usage against a perk's balance (e.g. redeem $50).
+export async function usePerk(formData: FormData) {
+  const id = str(formData.get("id"));
+  const amount = flt(formData.get("amount"));
+  if (!id || amount == null) return;
+  const perk = await prisma.membershipPerk.findUnique({ where: { id } });
+  if (!perk) return;
+  await prisma.membershipPerk.update({
+    where: { id },
+    data: { used: perk.used + amount },
+  });
+  refresh();
+}
+
+export async function deletePerk(formData: FormData) {
+  const id = str(formData.get("id"));
+  if (!id) return;
+  await prisma.membershipPerk.delete({ where: { id } });
+  refresh();
+}

@@ -190,6 +190,63 @@ async function main() {
     },
   });
 
+  // Warehouse-club travel memberships (no deposits — rewards & credits instead)
+  await prisma.exchangeMembership.create({
+    data: {
+      name: "Costco Travel",
+      network: "COSTCO_TRAVEL",
+      memberNumber: "1119-22334455",
+      tier: "Executive",
+      joinDate: new Date("2012-05-01"),
+      expiresAt: new Date(`${year}-05-31`),
+      membershipFee: 130,
+      notes: "Executive membership — 2% reward on Costco Travel packages plus member savings.",
+      perks: {
+        create: [
+          {
+            name: "Executive 2% Reward",
+            category: "REWARD",
+            value: 312.4,
+            used: 0,
+            notes: "2% annual reward accrued on travel & warehouse purchases.",
+          },
+          {
+            name: "Digital Costco Shop Card",
+            category: "CREDIT",
+            value: 200,
+            used: 0,
+            expiresAt: new Date(`${year}-12-31`),
+            notes: "Included with Hawaii package booking.",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.exchangeMembership.create({
+    data: {
+      name: "Sam's Club Travel",
+      network: "SAMS_TRAVEL",
+      memberNumber: "101-998877665",
+      tier: "Plus",
+      joinDate: new Date("2019-02-10"),
+      expiresAt: new Date(`${year}-02-28`),
+      membershipFee: 110,
+      notes: "Plus membership — Sam's Cash on travel bookings via Sam's Club Travel.",
+      perks: {
+        create: [
+          {
+            name: "Sam's Cash (travel)",
+            category: "REWARD",
+            value: 85.5,
+            used: 25,
+            notes: "Sam's Cash earned on travel and eligible purchases.",
+          },
+        ],
+      },
+    },
+  });
+
   // Deposits / trade credits sitting in the exchanges
   await prisma.exchangeDeposit.createMany({
     data: [
