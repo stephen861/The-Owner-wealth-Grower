@@ -1,0 +1,177 @@
+// Owner Wealth Grower — Travel CRM data model
+// Tracks timeshare ownership, points & membership benefits,
+// reservations/trips, and fees & finances.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A single owned timeshare contract / membership.
+model Timeshare {
+  id              String   @id @default(cuid())
+  name            String // friendly name, e.g. "Bonnet Creek 2BR"
+  brand           String? // e.g. "Wyndham", "Marriott", "Hilton"
+  resort          String? // resort / property name
+  location        String? // city, state, country
+  ownershipType   String   @default("POINTS") // POINTS | DEEDED_WEEK | FRACTIONAL | RTU
+  contractNumber  String?
+  memberNumber    String?
+  deededWeek      String? // e.g. "Week 26" for fixed-week ownership
+  unitType        String? // e.g. "2BR Deluxe"
+  ownershipShare  Float? // ownership percentage (0-100), for fractional
+  annualPoints    Int? // base annual point allotment for this contract
+  useYear         String? // ANNUAL | EVEN | ODD or a month for the use-year start
+  purchaseDate    DateTime?
+  purchasePrice   Float?
+  active          Boolean  @default(true)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  pointsAccounts      PointsAccount[]
+  benefits            Benefit[]
+  reservations        Reservation[]
+  fees                Fee[]
+  exchangeMemberships ExchangeMembership[]
+  exchangeDeposits    ExchangeDeposit[]
+}
+
+// An external exchange network or travel-benefit membership the owner
+// belongs to: RCI, Interval International, Westgate Cruise & Travel, etc.
+// Optionally linked to the owned timeshare that feeds it.
+model ExchangeMembership {
+  id            String   @id @default(cuid())
+  name          String // friendly name, e.g. "RCI Weeks"
+  network       String   @default("RCI") // RCI | INTERVAL | WESTGATE_TRAVEL | DAE | SFX | OTHER
+  memberNumber  String?
+  tier          String? // e.g. "RCI Platinum", "Interval Gold"
+  timeshareId   String? // the owned contract this membership is tied to
+  timeshare     Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  joinDate      DateTime?
+  expiresAt     DateTime?
+  membershipFee Float? // annual membership fee
+  active        Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  deposits ExchangeDeposit[]
+  perks    MembershipPerk[]
+}
+
+// A reward, credit, discount or perk attached to a membership.
+// Tracks a dollar value/balance (e.g. Costco Executive 2% reward,
+// Sam's Cash, a travel credit) and how much has been used.
+model MembershipPerk {
+  id           String   @id @default(cuid())
+  membershipId String
+  membership   ExchangeMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  name         String // e.g. "Executive 2% Reward", "Sam's Cash", "Travel credit"
+  category     String   @default("REWARD") // REWARD | CREDIT | DISCOUNT | PERK
+  value        Float? // total dollar value / balance (null for non-monetary perks)
+  used         Float    @default(0) // amount redeemed so far
+  expiresAt    DateTime?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// A week or block of points deposited into an exchange network that can
+// be traded for other stays. Tracks trading power and expiration — the
+// things owners most often lose track of.
+model ExchangeDeposit {
+  id           String   @id @default(cuid())
+  membershipId String
+  membership   ExchangeMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  timeshareId  String? // source ownership the deposit came from
+  timeshare    Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  depositType  String   @default("WEEK") // WEEK | POINTS
+  description  String? // e.g. "2025 Week 26 — Bonnet Creek 2BR"
+  tradingPower Float? // trading power / exchange value
+  pointsValue  Int? // for points-based deposits
+  depositDate  DateTime?
+  expiresAt    DateTime? // when the deposit / trade credit expires
+  status       String   @default("AVAILABLE") // AVAILABLE | USED | EXPIRED
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Points balance for a given use-year on a timeshare.
+// Captures the full lifecycle: allotted, used, banked, borrowed, expiring.
+model PointsAccount {
+  id           String   @id @default(cuid())
+  timeshareId  String
+  timeshare    Timeshare @relation(fields: [timeshareId], references: [id], onDelete: Cascade)
+  useYear      Int // calendar year the points belong to, e.g. 2026
+  allotted     Int      @default(0) // points granted this use year
+  used         Int      @default(0) // points already redeemed
+  banked       Int      @default(0) // points banked/saved into a future year
+  borrowed     Int      @default(0) // points borrowed from a future year
+  expiresAt    DateTime? // when remaining points expire
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([timeshareId, useYear])
+}
+
+// A membership benefit / perk tied to a timeshare or membership tier.
+model Benefit {
+  id           String   @id @default(cuid())
+  timeshareId  String
+  timeshare    Timeshare @relation(fields: [timeshareId], references: [id], onDelete: Cascade)
+  name         String // e.g. "Free guest certificates", "Lounge access"
+  category     String   @default("PERK") // TIER | PERK | DISCOUNT | CREDIT | UPGRADE
+  tier         String? // e.g. "Gold", "Platinum"
+  description  String?
+  totalAllowance Int? // e.g. 3 guest certs per year (null = unlimited / n.a.)
+  usedAllowance  Int    @default(0)
+  expiresAt    DateTime?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// A booked or planned stay/trip.
+model Reservation {
+  id                 String   @id @default(cuid())
+  timeshareId        String?
+  timeshare          Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  resort             String // where the stay is
+  location           String?
+  checkIn            DateTime
+  checkOut           DateTime
+  guests             Int      @default(1)
+  unitType           String?
+  confirmationNumber String?
+  pointsUsed         Int      @default(0)
+  cashCost           Float    @default(0)
+  status             String   @default("CONFIRMED") // PLANNED | CONFIRMED | COMPLETED | CANCELLED
+  guestName          String? // when booked for someone else (guest certificate)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// A financial obligation tied to a timeshare: maintenance fees,
+// special assessments, club dues, loan payments, etc.
+model Fee {
+  id           String   @id @default(cuid())
+  timeshareId  String
+  timeshare    Timeshare @relation(fields: [timeshareId], references: [id], onDelete: Cascade)
+  type         String   @default("MAINTENANCE") // MAINTENANCE | SPECIAL_ASSESSMENT | CLUB_DUES | LOAN | TAX | OTHER
+  description  String?
+  amount       Float
+  dueDate      DateTime
+  paid         Boolean  @default(false)
+  paidDate     DateTime?
+  recurrence   String   @default("ANNUAL") // ONCE | MONTHLY | QUARTERLY | ANNUAL
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
