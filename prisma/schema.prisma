@@ -159,6 +159,53 @@ model Reservation {
   updatedAt          DateTime @updatedAt
 }
 
+// ───────────────────────── Second Brain ─────────────────────────
+// A lightweight get-things-DONE system: capture everything into the
+// inbox, turn commitments into projects with a defined finish line,
+// keep at most a few ACTIVE at once, and close each one out before
+// pulling the next from the queue.
+
+// Quick capture — get an idea/commitment out of your head instantly.
+// Items are processed later: promoted to a project or dismissed.
+model InboxItem {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+}
+
+// A project with a defined finish line. Focus is enforced in the app:
+// at most WIP_LIMIT projects may be ACTIVE at once — everything else
+// waits in the queue until a slot opens by closing something out.
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  outcome     String? // definition of done — how you'll know it's finished
+  why         String? // why it matters / what finishing it unlocks
+  status      String    @default("QUEUED") // ACTIVE | QUEUED | WAITING | DONE | DROPPED
+  priority    String    @default("MEDIUM") // HIGH | MEDIUM | LOW
+  dueDate     DateTime?
+  waitingOn   String? // who/what it's blocked on while WAITING
+  startedAt   DateTime? // first activated
+  completedAt DateTime? // closed out (DONE or DROPPED)
+  closeNotes  String? // close-out: result, lessons, loose ends handed off
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tasks ProjectTask[]
+}
+
+// A concrete step inside a project. The first undone task is the
+// project's "next action" — the only thing you need to look at.
+model ProjectTask {
+  id        String    @id @default(cuid())
+  projectId String
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  done      Boolean   @default(false)
+  doneAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
 // A financial obligation tied to a timeshare: maintenance fees,
 // special assessments, club dues, loan payments, etc.
 model Fee {

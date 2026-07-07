@@ -4,6 +4,9 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Clear existing data (idempotent seed for local dev).
+  await prisma.projectTask.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.inboxItem.deleteMany();
   await prisma.exchangeDeposit.deleteMany();
   await prisma.exchangeMembership.deleteMany();
   await prisma.fee.deleteMany();
@@ -365,7 +368,74 @@ async function main() {
     ],
   });
 
-  console.log("✅ Seeded sample timeshares, points, benefits, reservations and fees.");
+  // ── Second Brain ──────────────────────────────────────────────
+  // Sample projects showing the flow: capture → queue → active (≤3)
+  // → close out. Replace with your real list.
+  await prisma.project.create({
+    data: {
+      name: "Use the expiring RCI deposit before it's gone",
+      outcome: "Exchange booked (or deposit extended) — nothing expires unused.",
+      why: "The older Westgate week deposit expires soon; unused = money lost.",
+      status: "ACTIVE",
+      priority: "HIGH",
+      dueDate: inDays(40),
+      startedAt: inDays(-7),
+      tasks: {
+        create: [
+          { title: "Search RCI for beach resorts in the expiry window", done: true, doneAt: inDays(-3) },
+          { title: "Shortlist 3 resorts and check school calendar" },
+          { title: "Book the exchange and save confirmation # in CRM" },
+        ],
+      },
+    },
+  });
+  await prisma.project.create({
+    data: {
+      name: "Redeem the Costco Shop Card before it expires",
+      outcome: "Full $200 card spent; balance at $0 in the CRM.",
+      status: "ACTIVE",
+      priority: "HIGH",
+      dueDate: inDays(25),
+      startedAt: inDays(-2),
+      tasks: {
+        create: [{ title: "Add card to Costco account and plan the purchase" }],
+      },
+    },
+  });
+  await prisma.project.createMany({
+    data: [
+      {
+        name: "Decide: keep or exit the Westgate contract",
+        outcome: "A written decision with numbers — keep, rent it out, or exit path chosen.",
+        why: "Maintenance fees keep rising; stop re-deciding this every month.",
+        status: "QUEUED",
+        priority: "MEDIUM",
+      },
+      {
+        name: "Set up autopay for all maintenance fees",
+        outcome: "Every recurring fee on autopay; no more late notices.",
+        status: "QUEUED",
+        priority: "LOW",
+      },
+      {
+        name: `Pay ${year} Marriott maintenance fee`,
+        outcome: "Fee paid and marked paid in the CRM.",
+        status: "DONE",
+        priority: "MEDIUM",
+        startedAt: inDays(-30),
+        completedAt: inDays(-12),
+        closeNotes: "Paid online, confirmation saved. Set a capture to enroll in autopay next year.",
+      },
+    ],
+  });
+  await prisma.inboxItem.createMany({
+    data: [
+      { content: "Ask Wyndham about banking this year's unused points" },
+      { content: "Compare Costco Travel vs direct pricing for the December AC trip" },
+    ],
+  });
+
+  console.log("✅ Seeded sample timeshares, points, benefits, reservations, fees and Second Brain projects.");
 }
 
 main()

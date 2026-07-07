@@ -25,10 +25,23 @@ required; your data lives in a local SQLite file.
   confirmation numbers, guest certificates, and status tracking.
 - **Fees & Finances** — maintenance fees, special assessments, club dues, loans and
   taxes, with due dates, overdue flags, and paid/unpaid tracking.
+- **Second Brain** — a get-things-DONE system built into the app:
+  - **Quick capture inbox** — dump every idea/commitment the moment it hits you, then
+    process items later into projects (or dismiss them). Capturing is not committing.
+  - **Focus slots (WIP limit)** — at most **3 projects active** at once, enforced.
+    Everything else waits in the **Up Next** queue until you close something out.
+  - **Definition of done** — every project records what "finished" looks like and why
+    it matters, so projects actually end instead of lingering.
+  - **Next actions** — each project keeps a step list; the top unchecked step is your
+    single next action, surfaced on the Second Brain page and the main dashboard.
+  - **Close-out flow** — mark projects DONE with result/lessons notes (or deliberately
+    DROP them), park blocked ones as WAITING with who/what you're waiting on, and see
+    a "shipped this month" scoreboard for momentum.
+  - **Weekly review checklist** — a 10-minute routine to keep the system honest.
 - **Dashboard** — portfolio snapshot: timeshare count, available points, annual
   allotment, outstanding fees, exchange deposits, travel rewards balance, upcoming
-  trips, fees coming due, expiring deposits, and **membership renewals & expiring
-  rewards** in the next 120 days.
+  trips, fees coming due, expiring deposits, **membership renewals & expiring
+  rewards** in the next 120 days, and your active projects' **next actions**.
 
 ## Getting started
 
@@ -72,6 +85,9 @@ To start from an empty database instead of sample data, run
 | `MembershipPerk`     | A dollar-value reward/credit/discount on a membership       |
 | `Reservation`        | A booked or planned stay                                    |
 | `Fee`                | A financial obligation (maintenance, assessment, dues, loan…)|
+| `InboxItem`          | A quick-captured thought waiting to be processed             |
+| `Project`            | A Second Brain project with a defined finish line & status   |
+| `ProjectTask`        | A step inside a project (top unchecked step = next action)   |
 
 The database file (`prisma/dev.db`) is git-ignored — your data stays local.
 

@@ -114,6 +114,24 @@ export const DEPOSIT_STATUS = [
   { value: "EXPIRED", label: "Expired" },
 ];
 
+// Second Brain: how many projects may be ACTIVE at once. The whole
+// point of the system — a new project can't start until one finishes.
+export const WIP_LIMIT = 3;
+
+export const PROJECT_STATUS = [
+  { value: "ACTIVE", label: "Active" },
+  { value: "QUEUED", label: "Up next" },
+  { value: "WAITING", label: "Waiting" },
+  { value: "DONE", label: "Done" },
+  { value: "DROPPED", label: "Dropped" },
+];
+
+export const PROJECT_PRIORITY = [
+  { value: "HIGH", label: "High" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "LOW", label: "Low" },
+];
+
 export function labelFor(
   list: { value: string; label: string }[],
   value: string | null | undefined,

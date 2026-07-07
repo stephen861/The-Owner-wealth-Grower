@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   const now = new Date();
   const year = now.getFullYear();
 
-  const [timeshares, pointsAccounts, reservations, fees, deposits, perks, memberships] =
+  const [timeshares, pointsAccounts, reservations, fees, deposits, perks, memberships, activeProjects] =
     await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
@@ -39,6 +39,11 @@ export default async function DashboardPage() {
     }),
     prisma.membershipPerk.findMany({ include: { membership: true } }),
     prisma.exchangeMembership.findMany({ where: { active: true } }),
+    prisma.project.findMany({
+      where: { status: "ACTIVE" },
+      include: { tasks: { where: { done: false }, orderBy: { createdAt: "asc" }, take: 1 } },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -162,6 +167,54 @@ export default async function DashboardPage() {
           <div className="sub">Unredeemed balance</div>
         </div>
       </div>
+
+      {activeProjects.length > 0 ? (
+        <div className="panel">
+          <div className="section-title">
+            <h2>🧠 Next actions</h2>
+            <Link className="btn ghost small" href="/brain">
+              Second Brain
+            </Link>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Next action</th>
+                <th>Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activeProjects.map((p) => {
+                const d = daysUntil(p.dueDate);
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <Link href={`/brain/projects/${p.id}`}>
+                        <strong>{p.name}</strong>
+                      </Link>
+                    </td>
+                    <td>
+                      {p.tasks[0]?.title ?? (
+                        <span className="badge amber">no next action</span>
+                      )}
+                    </td>
+                    <td>
+                      {p.dueDate ? (
+                        <span className={`badge ${d != null && d < 0 ? "red" : d != null && d <= 7 ? "amber" : ""}`}>
+                          {formatDate(p.dueDate)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <div className="panel">
         <div className="section-title">
