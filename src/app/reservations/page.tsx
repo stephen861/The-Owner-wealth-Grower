@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
+  contactName,
   formatCurrency,
   formatDate,
   formatNumber,
@@ -31,11 +32,12 @@ function statusBadge(status: string): string {
 
 export default async function ReservationsPage() {
   const now = new Date();
-  const [timeshares, reservations] = await Promise.all([
+  const [timeshares, contacts, reservations] = await Promise.all([
     prisma.timeshare.findMany({ orderBy: { name: "asc" } }),
+    prisma.contact.findMany({ orderBy: [{ firstName: "asc" }, { lastName: "asc" }] }),
     prisma.reservation.findMany({
       orderBy: { checkIn: "asc" },
-      include: { timeshare: true },
+      include: { timeshare: true, contact: true },
     }),
   ]);
 
@@ -51,11 +53,13 @@ export default async function ReservationsPage() {
       <thead>
         <tr>
           <th>Resort</th>
+          <th>Client</th>
           <th>Timeshare</th>
           <th>Dates</th>
           <th className="right">Nights</th>
           <th className="right">Points</th>
-          <th className="right">Cash</th>
+          <th className="right">Cost</th>
+          <th className="right">Commission</th>
           <th>Status</th>
           <th></th>
         </tr>
@@ -67,6 +71,15 @@ export default async function ReservationsPage() {
               <strong>{r.resort}</strong>
               {r.location ? <div className="subnote">{r.location}</div> : null}
               {r.guestName ? <div className="subnote">Guest: {r.guestName}</div> : null}
+            </td>
+            <td>
+              {r.contact ? (
+                <Link href={`/contacts/${r.contact.id}`} className="link">
+                  {contactName(r.contact)}
+                </Link>
+              ) : (
+                <span className="muted">Own stay</span>
+              )}
             </td>
             <td>
               {r.timeshare ? (
@@ -81,7 +94,15 @@ export default async function ReservationsPage() {
             </td>
             <td className="right">{nights(r.checkIn, r.checkOut)}</td>
             <td className="right">{formatNumber(r.pointsUsed)}</td>
-            <td className="right">{formatCurrency(r.cashCost)}</td>
+            <td className="right">
+              {formatCurrency(r.cashCost)}
+              {r.clientCharge > 0 ? (
+                <div className="subnote">client {formatCurrency(r.clientCharge)}</div>
+              ) : null}
+            </td>
+            <td className="right">
+              {r.commission > 0 ? formatCurrency(r.commission) : <span className="muted">—</span>}
+            </td>
             <td>
               <form
                 action={updateReservationStatus}
@@ -124,7 +145,7 @@ export default async function ReservationsPage() {
       <div className="page-head">
         <div>
           <h1>Reservations</h1>
-          <p>Upcoming and past stays across all your ownerships.</p>
+          <p>Upcoming and past stays — your own and the ones you book for clients.</p>
         </div>
       </div>
 
@@ -145,6 +166,17 @@ export default async function ReservationsPage() {
             {formatNumber(upcoming.reduce((s, r) => s + nights(r.checkIn, r.checkOut), 0))}
           </div>
         </div>
+        <div className="card">
+          <div className="label">Commission booked</div>
+          <div className="value">
+            {formatCurrency(
+              reservations
+                .filter((r) => r.status !== "CANCELLED")
+                .reduce((s, r) => s + r.commission, 0),
+            )}
+          </div>
+          <div className="sub">Across all client stays</div>
+        </div>
       </div>
 
       <div className="panel">
@@ -153,6 +185,17 @@ export default async function ReservationsPage() {
           <div className="field">
             <label>Resort *</label>
             <input name="resort" required placeholder="Club Wyndham Bonnet Creek" />
+          </div>
+          <div className="field">
+            <label>Client</label>
+            <select name="contactId" defaultValue="">
+              <option value="">— My own stay —</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {contactName(c)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label>Timeshare used</label>
@@ -190,8 +233,16 @@ export default async function ReservationsPage() {
             <input name="pointsUsed" type="number" defaultValue={0} />
           </div>
           <div className="field">
-            <label>Cash cost</label>
+            <label>Cash cost (your outlay)</label>
             <input name="cashCost" type="number" step="0.01" defaultValue={0} />
+          </div>
+          <div className="field">
+            <label>Client charged</label>
+            <input name="clientCharge" type="number" step="0.01" defaultValue={0} />
+          </div>
+          <div className="field">
+            <label>Your commission</label>
+            <input name="commission" type="number" step="0.01" defaultValue={0} />
           </div>
           <div className="field">
             <label>Confirmation #</label>

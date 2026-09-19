@@ -143,6 +143,10 @@ model Reservation {
   id                 String   @id @default(cuid())
   timeshareId        String?
   timeshare          Timeshare? @relation(fields: [timeshareId], references: [id], onDelete: SetNull)
+  contactId          String? // the client this stay was booked for
+  contact            Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  dealId             String? // the deal this booking fulfils
+  deal               Deal? @relation(fields: [dealId], references: [id], onDelete: SetNull)
   resort             String // where the stay is
   location           String?
   checkIn            DateTime
@@ -152,6 +156,8 @@ model Reservation {
   confirmationNumber String?
   pointsUsed         Int      @default(0)
   cashCost           Float    @default(0)
+  clientCharge       Float    @default(0) // what the client paid you
+  commission         Float    @default(0) // your earnings on this booking
   status             String   @default("CONFIRMED") // PLANNED | CONFIRMED | COMPLETED | CANCELLED
   guestName          String? // when booked for someone else (guest certificate)
   notes              String?
@@ -174,4 +180,74 @@ model Fee {
   recurrence   String   @default("ANNUAL") // ONCE | MONTHLY | QUARTERLY | ANNUAL
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Client relationship layer: the people you sell to and serve, the deals in
+// flight, and every touchpoint/follow-up owed to them.
+// ---------------------------------------------------------------------------
+
+// A person or household in your book of business: client, lead, partner or
+// guest traveller.
+model Contact {
+  id             String   @id @default(cuid())
+  firstName      String
+  lastName       String?
+  email          String?
+  phone          String?
+  company        String?
+  type           String   @default("LEAD") // LEAD | CLIENT | PARTNER | GUEST
+  status         String   @default("NEW") // NEW | CONTACTED | QUALIFIED | ACTIVE | DORMANT | LOST
+  source         String? // REFERRAL | PRESENTATION | SOCIAL | WEBSITE | REPEAT | OTHER
+  city           String?
+  state          String?
+  tags           String? // comma-separated, e.g. "cruise,family,VIP"
+  lastContactAt  DateTime?
+  nextFollowUpAt DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  deals        Deal[]
+  activities   Activity[]
+  reservations Reservation[]
+}
+
+// A revenue opportunity moving through the sales pipeline.
+model Deal {
+  id             String   @id @default(cuid())
+  contactId      String
+  contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  title          String // e.g. "Cancun 7-night — Ramirez family"
+  stage          String   @default("NEW") // NEW | QUALIFYING | PROPOSAL | NEGOTIATION | WON | LOST
+  value          Float    @default(0) // gross booking / sale value
+  commissionRate Float    @default(0) // percent of value you keep (0-100)
+  probability    Int      @default(25) // 0-100, used for the weighted forecast
+  expectedCloseAt DateTime?
+  closedAt       DateTime?
+  lostReason     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  activities   Activity[]
+  reservations Reservation[]
+}
+
+// A logged touchpoint or an open task/follow-up, optionally tied to a
+// contact and/or a deal.
+model Activity {
+  id          String   @id @default(cuid())
+  contactId   String?
+  contact     Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  dealId      String?
+  deal        Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  type        String   @default("NOTE") // CALL | EMAIL | TEXT | MEETING | NOTE | TASK
+  subject     String
+  body        String?
+  dueAt       DateTime? // set for follow-ups / tasks
+  done        Boolean  @default(false)
+  doneAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

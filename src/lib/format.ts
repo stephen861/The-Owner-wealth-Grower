@@ -114,6 +114,85 @@ export const DEPOSIT_STATUS = [
   { value: "EXPIRED", label: "Expired" },
 ];
 
+export const CONTACT_TYPES = [
+  { value: "LEAD", label: "Lead" },
+  { value: "CLIENT", label: "Client" },
+  { value: "PARTNER", label: "Partner" },
+  { value: "GUEST", label: "Guest traveller" },
+];
+
+export const CONTACT_STATUS = [
+  { value: "NEW", label: "New" },
+  { value: "CONTACTED", label: "Contacted" },
+  { value: "QUALIFIED", label: "Qualified" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "DORMANT", label: "Dormant" },
+  { value: "LOST", label: "Lost" },
+];
+
+export const CONTACT_SOURCES = [
+  { value: "REFERRAL", label: "Referral" },
+  { value: "PRESENTATION", label: "Owner presentation" },
+  { value: "SOCIAL", label: "Social media" },
+  { value: "WEBSITE", label: "Website" },
+  { value: "REPEAT", label: "Repeat client" },
+  { value: "OTHER", label: "Other" },
+];
+
+// Pipeline stages in order. `open` stages roll into the forecast.
+export const DEAL_STAGES = [
+  { value: "NEW", label: "New", open: true },
+  { value: "QUALIFYING", label: "Qualifying", open: true },
+  { value: "PROPOSAL", label: "Proposal sent", open: true },
+  { value: "NEGOTIATION", label: "Negotiation", open: true },
+  { value: "WON", label: "Won", open: false },
+  { value: "LOST", label: "Lost", open: false },
+];
+
+export const OPEN_STAGES = DEAL_STAGES.filter((s) => s.open).map((s) => s.value);
+
+export const ACTIVITY_TYPES = [
+  { value: "CALL", label: "Call" },
+  { value: "EMAIL", label: "Email" },
+  { value: "TEXT", label: "Text" },
+  { value: "MEETING", label: "Meeting" },
+  { value: "NOTE", label: "Note" },
+  { value: "TASK", label: "Task" },
+];
+
+export const ACTIVITY_ICONS: Record<string, string> = {
+  CALL: "\u{1F4DE}",
+  EMAIL: "\u2709\uFE0F",
+  TEXT: "\u{1F4AC}",
+  MEETING: "\u{1F91D}",
+  NOTE: "\u{1F4DD}",
+  TASK: "\u2705",
+};
+
+export function contactName(c: {
+  firstName: string;
+  lastName?: string | null;
+}): string {
+  return [c.firstName, c.lastName].filter(Boolean).join(" ");
+}
+
+// Your cut of a deal: value x commission rate.
+export function commissionOf(deal: {
+  value: number;
+  commissionRate: number;
+}): number {
+  return (deal.value * deal.commissionRate) / 100;
+}
+
+// Commission weighted by the deal's probability of closing.
+export function weightedCommissionOf(deal: {
+  value: number;
+  commissionRate: number;
+  probability: number;
+}): number {
+  return (commissionOf(deal) * deal.probability) / 100;
+}
+
 export function labelFor(
   list: { value: string; label: string }[],
   value: string | null | undefined,

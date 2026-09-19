@@ -22,6 +22,7 @@ function date(v: FormDataEntryValue | null): Date | null {
 
 function refresh() {
   revalidatePath("/reservations");
+  revalidatePath("/contacts");
   revalidatePath("/");
 }
 
@@ -33,6 +34,7 @@ export async function createReservation(formData: FormData) {
   await prisma.reservation.create({
     data: {
       timeshareId: str(formData.get("timeshareId")),
+      contactId: str(formData.get("contactId")),
       resort,
       location: str(formData.get("location")),
       checkIn,
@@ -42,6 +44,8 @@ export async function createReservation(formData: FormData) {
       confirmationNumber: str(formData.get("confirmationNumber")),
       pointsUsed: int(formData.get("pointsUsed")),
       cashCost: flt(formData.get("cashCost")),
+      clientCharge: flt(formData.get("clientCharge")),
+      commission: flt(formData.get("commission")),
       status: str(formData.get("status")) ?? "CONFIRMED",
       guestName: str(formData.get("guestName")),
       notes: str(formData.get("notes")),

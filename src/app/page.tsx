@@ -1,14 +1,20 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
+  commissionOf,
+  contactName,
   daysUntil,
   formatCurrency,
   formatDate,
   formatNumber,
   labelFor,
   nights,
-  FEE_TYPES,
+  weightedCommissionOf,
+  ACTIVITY_ICONS,
+  DEAL_STAGES,
   EXCHANGE_NETWORKS,
+  FEE_TYPES,
+  OPEN_STAGES,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +23,18 @@ export default async function DashboardPage() {
   const now = new Date();
   const year = now.getFullYear();
 
-  const [timeshares, pointsAccounts, reservations, fees, deposits, perks, memberships] =
-    await Promise.all([
+  const [
+    timeshares,
+    pointsAccounts,
+    reservations,
+    fees,
+    deposits,
+    perks,
+    memberships,
+    deals,
+    openActivities,
+    contactCount,
+  ] = await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
     prisma.reservation.findMany({
@@ -39,6 +55,13 @@ export default async function DashboardPage() {
     }),
     prisma.membershipPerk.findMany({ include: { membership: true } }),
     prisma.exchangeMembership.findMany({ where: { active: true } }),
+    prisma.deal.findMany({ include: { contact: true } }),
+    prisma.activity.findMany({
+      where: { done: false },
+      orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
+      include: { contact: true },
+    }),
+    prisma.contact.count(),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -55,6 +78,22 @@ export default async function DashboardPage() {
     (s, p) => s + Math.max(0, (p.value ?? 0) - p.used),
     0,
   );
+
+  // Client-side metrics: what is in flight and what is owed a follow-up.
+  const openDeals = deals.filter((d) => OPEN_STAGES.includes(d.stage));
+  const wonDeals = deals.filter((d) => d.stage === "WON");
+  const pipelineValue = openDeals.reduce((s, d) => s + d.value, 0);
+  const commissionForecast = openDeals.reduce((s, d) => s + weightedCommissionOf(d), 0);
+  const commissionWon = wonDeals.reduce((s, d) => s + commissionOf(d), 0);
+  const dueActivities = openActivities.filter((a) => {
+    const d = daysUntil(a.dueAt);
+    return d != null && d <= 7;
+  });
+  const overdueActivities = dueActivities.filter((a) => (daysUntil(a.dueAt) ?? 0) < 0);
+  const closingSoon = [...openDeals]
+    .filter((d) => d.expectedCloseAt)
+    .sort((a, b) => a.expectedCloseAt!.getTime() - b.expectedCloseAt!.getTime())
+    .slice(0, 6);
 
   // Unified upcoming-dates feed: membership renewals + reward/credit
   // expirations within the next 120 days, soonest first.
@@ -105,7 +144,7 @@ export default async function DashboardPage() {
       <div className="page-head">
         <div>
           <h1>Dashboard</h1>
-          <p>Your timeshare portfolio at a glance.</p>
+          <p>Your clients, your pipeline and your portfolio at a glance.</p>
         </div>
         <Link className="btn" href="/timeshares/new">
           + Add timeshare
@@ -127,6 +166,145 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
+      <h2 className="group-heading">Revenue engine</h2>
+      <div className="cards">
+        <div className="card">
+          <div className="label">Open pipeline</div>
+          <div className="value">{formatCurrency(pipelineValue)}</div>
+          <div className="sub">{openDeals.length} live deals</div>
+        </div>
+        <div className="card">
+          <div className="label">Commission forecast</div>
+          <div className="value">{formatCurrency(commissionForecast)}</div>
+          <div className="sub">Weighted by probability</div>
+        </div>
+        <div className="card">
+          <div className="label">Commission won</div>
+          <div className="value">{formatCurrency(commissionWon)}</div>
+          <div className="sub">{wonDeals.length} closed-won deals</div>
+        </div>
+        <div className="card">
+          <div className="label">Follow-ups due</div>
+          <div className="value">{dueActivities.length}</div>
+          <div className="sub">
+            {overdueActivities.length > 0
+              ? `${overdueActivities.length} overdue`
+              : "next 7 days"}
+          </div>
+        </div>
+        <div className="card">
+          <div className="label">Contacts</div>
+          <div className="value">{contactCount}</div>
+          <div className="sub">In your book of business</div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Follow-ups due</h2>
+          <Link className="btn ghost small" href="/activities">
+            All activities
+          </Link>
+        </div>
+        {dueActivities.length === 0 ? (
+          <div className="empty">Nothing due in the next 7 days. 🎉</div>
+        ) : (
+          <div className="timeline">
+            {dueActivities.slice(0, 8).map((a) => {
+              const d = daysUntil(a.dueAt);
+              return (
+                <div key={a.id} className="timeline-item">
+                  <span className="timeline-icon">{ACTIVITY_ICONS[a.type] ?? "📝"}</span>
+                  <div className="timeline-body">
+                    <strong>{a.subject}</strong>
+                    <div className="subnote">
+                      {a.contact ? (
+                        <Link href={`/contacts/${a.contact.id}`} className="link">
+                          {contactName(a.contact)}
+                        </Link>
+                      ) : (
+                        "No contact"
+                      )}
+                      {" · due "}
+                      {formatDate(a.dueAt)}
+                    </div>
+                  </div>
+                  <div className="timeline-actions">
+                    <span
+                      className={`badge ${
+                        d != null && d < 0 ? "red" : d === 0 ? "amber" : "blue"
+                      }`}
+                    >
+                      {d != null && d < 0
+                        ? `${Math.abs(d)}d overdue`
+                        : d === 0
+                          ? "Today"
+                          : `${d}d`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Deals closing soon</h2>
+          <Link className="btn ghost small" href="/pipeline">
+            Full pipeline
+          </Link>
+        </div>
+        {closingSoon.length === 0 ? (
+          <div className="empty">No open deals with an expected close date.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Deal</th>
+                <th>Client</th>
+                <th>Stage</th>
+                <th className="right">Value</th>
+                <th className="right">Commission</th>
+                <th className="right">Close</th>
+              </tr>
+            </thead>
+            <tbody>
+              {closingSoon.map((d) => {
+                const days = daysUntil(d.expectedCloseAt);
+                return (
+                  <tr key={d.id}>
+                    <td>
+                      <strong>{d.title}</strong>
+                      <div className="subnote">{d.probability}% likely</div>
+                    </td>
+                    <td>
+                      <Link href={`/contacts/${d.contactId}`} className="link">
+                        {contactName(d.contact)}
+                      </Link>
+                    </td>
+                    <td>{labelFor(DEAL_STAGES, d.stage)}</td>
+                    <td className="right">{formatCurrency(d.value)}</td>
+                    <td className="right">{formatCurrency(commissionOf(d))}</td>
+                    <td className="right">
+                      <span
+                        className={`badge ${
+                          days != null && days < 0 ? "red" : days != null && days <= 14 ? "amber" : "blue"
+                        }`}
+                      >
+                        {formatDate(d.expectedCloseAt)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <h2 className="group-heading">Portfolio</h2>
       <div className="cards">
         <div className="card">
           <div className="label">Timeshares</div>

@@ -4,10 +4,13 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Clear existing data (idempotent seed for local dev).
+  await prisma.activity.deleteMany();
   await prisma.exchangeDeposit.deleteMany();
   await prisma.exchangeMembership.deleteMany();
   await prisma.fee.deleteMany();
   await prisma.reservation.deleteMany();
+  await prisma.deal.deleteMany();
+  await prisma.contact.deleteMany();
   await prisma.benefit.deleteMany();
   await prisma.pointsAccount.deleteMany();
   await prisma.timeshare.deleteMany();
@@ -365,7 +368,210 @@ async function main() {
     ],
   });
 
-  console.log("✅ Seeded sample timeshares, points, benefits, reservations and fees.");
+  // ---------------------------------------------------------------------
+  // Client relationship layer: contacts, deals in flight, and follow-ups.
+  // ---------------------------------------------------------------------
+
+  const maria = await prisma.contact.create({
+    data: {
+      firstName: "Maria",
+      lastName: "Ramirez",
+      email: "maria.ramirez@example.com",
+      phone: "(813) 555-0142",
+      type: "CLIENT",
+      status: "ACTIVE",
+      source: "REFERRAL",
+      city: "Tampa",
+      state: "FL",
+      tags: "family, repeat, spring-break",
+      lastContactAt: inDays(-6),
+      nextFollowUpAt: inDays(3),
+      notes: "Books a 2BR every spring break. Prefers Orlando or the Gulf coast.",
+    },
+  });
+
+  const chen = await prisma.contact.create({
+    data: {
+      firstName: "David",
+      lastName: "Chen",
+      email: "d.chen@example.com",
+      phone: "(206) 555-0188",
+      type: "LEAD",
+      status: "QUALIFIED",
+      source: "PRESENTATION",
+      city: "Seattle",
+      state: "WA",
+      tags: "hawaii, anniversary",
+      lastContactAt: inDays(-2),
+      nextFollowUpAt: inDays(-1),
+      notes: "25th anniversary trip to Maui. Budget around $9k, dates flexible.",
+    },
+  });
+
+  const okafor = await prisma.contact.create({
+    data: {
+      firstName: "Grace",
+      lastName: "Okafor",
+      email: "grace.okafor@example.com",
+      phone: "(404) 555-0119",
+      type: "LEAD",
+      status: "CONTACTED",
+      source: "SOCIAL",
+      city: "Atlanta",
+      state: "GA",
+      tags: "cruise",
+      lastContactAt: inDays(-11),
+      nextFollowUpAt: inDays(1),
+      notes: "Asked about a Caribbean cruise through Westgate Cruise & Travel.",
+    },
+  });
+
+  const bennett = await prisma.contact.create({
+    data: {
+      firstName: "Tom",
+      lastName: "Bennett",
+      company: "Bennett & Co. Realty",
+      email: "tom@bennettrealty.example",
+      phone: "(727) 555-0173",
+      type: "PARTNER",
+      status: "ACTIVE",
+      source: "REFERRAL",
+      city: "Clearwater",
+      state: "FL",
+      tags: "referral-partner",
+      lastContactAt: inDays(-20),
+      notes: "Sends 2-3 client referrals a quarter. Owed a thank-you dinner.",
+    },
+  });
+
+  const mariaDeal = await prisma.deal.create({
+    data: {
+      contactId: maria.id,
+      title: "Spring break 2BR — Bonnet Creek",
+      stage: "WON",
+      value: 3200,
+      commissionRate: 12,
+      probability: 100,
+      expectedCloseAt: inDays(-14),
+      closedAt: inDays(-14),
+      notes: "Booked on Wyndham points, guest certificate issued.",
+    },
+  });
+
+  const chenDeal = await prisma.deal.create({
+    data: {
+      contactId: chen.id,
+      title: "Maui 10-night anniversary package",
+      stage: "PROPOSAL",
+      value: 9400,
+      commissionRate: 10,
+      probability: 60,
+      expectedCloseAt: inDays(12),
+      notes: "Quoted two Interval options plus a cash rate. Waiting on dates.",
+    },
+  });
+
+  await prisma.deal.create({
+    data: {
+      contactId: okafor.id,
+      title: "7-night Caribbean cruise — 2 cabins",
+      stage: "QUALIFYING",
+      value: 5600,
+      commissionRate: 9,
+      probability: 30,
+      expectedCloseAt: inDays(40),
+      notes: "Needs pricing for October sailings out of Miami.",
+    },
+  });
+
+  await prisma.deal.create({
+    data: {
+      contactId: maria.id,
+      title: "Summer Gulf coast week",
+      stage: "NEGOTIATION",
+      value: 4100,
+      commissionRate: 12,
+      probability: 75,
+      expectedCloseAt: inDays(21),
+      notes: "Comparing Marriott Ocean Pointe against a cash rate in Destin.",
+    },
+  });
+
+  await prisma.activity.createMany({
+    data: [
+      {
+        contactId: chen.id,
+        dealId: chenDeal.id,
+        type: "EMAIL",
+        subject: "Sent Maui proposal with 3 options",
+        body: "Interval exchange, points stay, and a cash rate for comparison.",
+        done: true,
+        doneAt: inDays(-2),
+      },
+      {
+        contactId: chen.id,
+        dealId: chenDeal.id,
+        type: "CALL",
+        subject: "Follow up on Maui proposal",
+        body: "Confirm travel dates and whether they want the ocean-view upgrade.",
+        dueAt: inDays(-1),
+      },
+      {
+        contactId: okafor.id,
+        type: "CALL",
+        subject: "Send October cruise pricing",
+        dueAt: inDays(1),
+      },
+      {
+        contactId: maria.id,
+        dealId: mariaDeal.id,
+        type: "TASK",
+        subject: "Confirm guest certificate for spring break stay",
+        dueAt: inDays(3),
+      },
+      {
+        contactId: maria.id,
+        type: "MEETING",
+        subject: "Reviewed 2027 travel plans over coffee",
+        body: "Interested in an Alaska cruise next year.",
+        done: true,
+        doneAt: inDays(-6),
+      },
+      {
+        contactId: bennett.id,
+        type: "NOTE",
+        subject: "Referred the Chen family",
+        done: true,
+        doneAt: inDays(-20),
+      },
+      {
+        contactId: bennett.id,
+        type: "TASK",
+        subject: "Send Q3 referral thank-you gift",
+        dueAt: inDays(9),
+      },
+    ],
+  });
+
+  // Attach the won deal's stay to the client so commission shows on the trip.
+  const springBreak = await prisma.reservation.findFirst({
+    orderBy: { checkIn: "asc" },
+  });
+  if (springBreak) {
+    await prisma.reservation.update({
+      where: { id: springBreak.id },
+      data: {
+        contactId: maria.id,
+        dealId: mariaDeal.id,
+        clientCharge: 3200,
+        commission: 384,
+      },
+    });
+  }
+
+  console.log(
+    "✅ Seeded sample contacts, deals, activities, timeshares, points, benefits, reservations and fees.",
+  );
 }
 
 main()
