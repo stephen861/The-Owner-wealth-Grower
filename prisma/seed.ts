@@ -5,6 +5,14 @@ const prisma = new PrismaClient();
 async function main() {
   // Clear existing data (idempotent seed for local dev).
   await prisma.activity.deleteMany();
+  await prisma.expense.deleteMany();
+  await prisma.workOrder.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.charge.deleteMany();
+  await prisma.lease.deleteMany();
+  await prisma.unit.deleteMany();
+  await prisma.property.deleteMany();
+  await prisma.vendor.deleteMany();
   await prisma.exchangeDeposit.deleteMany();
   await prisma.exchangeMembership.deleteMany();
   await prisma.fee.deleteMany();
@@ -569,8 +577,323 @@ async function main() {
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Property management: properties, units, leases, ledger, maintenance.
+  // ---------------------------------------------------------------------
+
+  const monthKey = (offset: number) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + offset);
+    return {
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      first: new Date(d.getFullYear(), d.getMonth(), 1),
+    };
+  };
+
+  // An owner whose properties you manage for a fee.
+  const patel = await prisma.contact.create({
+    data: {
+      firstName: "Anil",
+      lastName: "Patel",
+      email: "anil.patel@example.com",
+      phone: "(813) 555-0166",
+      type: "OWNER",
+      status: "ACTIVE",
+      source: "REFERRAL",
+      city: "Tampa",
+      state: "FL",
+      tags: "owner, out-of-state",
+      notes: "Owns three doors in Seminole Heights. Wants monthly statements by the 5th.",
+    },
+  });
+
+  // Tenants.
+  const tenantData = [
+    { firstName: "Jasmine", lastName: "Carter", phone: "(813) 555-0210" },
+    { firstName: "Marcus", lastName: "Webb", phone: "(813) 555-0233" },
+    { firstName: "Elena", lastName: "Vasquez", phone: "(727) 555-0298" },
+    { firstName: "Derrick", lastName: "Hall", phone: "(813) 555-0311" },
+  ];
+  const tenants = [];
+  for (const t of tenantData) {
+    tenants.push(
+      await prisma.contact.create({
+        data: {
+          ...t,
+          email: `${t.firstName.toLowerCase()}.${t.lastName.toLowerCase()}@example.com`,
+          type: "TENANT",
+          status: "ACTIVE",
+          city: "Tampa",
+          state: "FL",
+        },
+      }),
+    );
+  }
+
+  const vendors = await Promise.all([
+    prisma.vendor.create({
+      data: {
+        name: "Gulf Coast Plumbing",
+        trade: "PLUMBING",
+        contactName: "Ray Dunn",
+        phone: "(813) 555-0455",
+        email: "dispatch@gulfcoastplumbing.example",
+        hourlyRate: 95,
+        insuredUntil: inDays(240),
+        w9OnFile: true,
+      },
+    }),
+    prisma.vendor.create({
+      data: {
+        name: "Bay Area HVAC",
+        trade: "HVAC",
+        contactName: "Tina Cole",
+        phone: "(813) 555-0477",
+        hourlyRate: 110,
+        insuredUntil: inDays(21),
+        w9OnFile: true,
+        notes: "Insurance certificate expires soon — request an updated COI.",
+      },
+    }),
+    prisma.vendor.create({
+      data: {
+        name: "Sunshine Turnovers",
+        trade: "CLEANING",
+        phone: "(813) 555-0488",
+        hourlyRate: 45,
+        w9OnFile: false,
+        notes: "Fast on turns, but no W-9 on file yet.",
+      },
+    }),
+  ]);
+
+  // A self-owned duplex and a managed fourplex.
+  const duplex = await prisma.property.create({
+    data: {
+      name: "Maple Street Duplex",
+      addressLine1: "1420 Maple St",
+      city: "Tampa",
+      state: "FL",
+      zip: "33604",
+      type: "MULTI_FAMILY",
+      managementFeeRate: 0,
+      purchaseDate: new Date("2021-04-08"),
+      purchasePrice: 268000,
+      marketValue: 395000,
+      mortgageBalance: 191000,
+      notes: "Self-owned. Roof replaced 2023.",
+      units: {
+        create: [
+          { label: "A", beds: 2, baths: 1, sqft: 900, marketRent: 1650, status: "OCCUPIED" },
+          { label: "B", beds: 2, baths: 1, sqft: 900, marketRent: 1650, status: "OCCUPIED" },
+        ],
+      },
+    },
+    include: { units: { orderBy: { label: "asc" } } },
+  });
+
+  const fourplex = await prisma.property.create({
+    data: {
+      name: "Heights Fourplex",
+      addressLine1: "908 E Hanna Ave",
+      city: "Tampa",
+      state: "FL",
+      zip: "33604",
+      type: "APARTMENT",
+      ownerId: patel.id,
+      managementFeeRate: 9,
+      marketValue: 620000,
+      mortgageBalance: 410000,
+      notes: "Managed for Anil Patel at 9% of collections.",
+      units: {
+        create: [
+          { label: "1", beds: 1, baths: 1, sqft: 620, marketRent: 1300, status: "OCCUPIED" },
+          { label: "2", beds: 1, baths: 1, sqft: 620, marketRent: 1300, status: "OCCUPIED" },
+          { label: "3", beds: 2, baths: 1, sqft: 850, marketRent: 1575, status: "VACANT" },
+          { label: "4", beds: 2, baths: 1, sqft: 850, marketRent: 1575, status: "DOWN" },
+        ],
+      },
+    },
+    include: { units: { orderBy: { label: "asc" } } },
+  });
+
+  const leaseSpecs = [
+    { unit: duplex.units[0], tenant: tenants[0], rent: 1650, deposit: 1650 },
+    { unit: duplex.units[1], tenant: tenants[1], rent: 1600, deposit: 1600 },
+    { unit: fourplex.units[0], tenant: tenants[2], rent: 1300, deposit: 1300 },
+    { unit: fourplex.units[1], tenant: tenants[3], rent: 1275, deposit: 1275 },
+  ];
+
+  const leases = [];
+  for (const spec of leaseSpecs) {
+    leases.push(
+      await prisma.lease.create({
+        data: {
+          unitId: spec.unit.id,
+          tenantId: spec.tenant.id,
+          startDate: inDays(-300),
+          endDate: inDays(65),
+          rentAmount: spec.rent,
+          rentDueDay: 1,
+          depositAmount: spec.deposit,
+          depositHeld: spec.deposit,
+          lateFeeAmount: 75,
+          lateFeeAfterDay: 5,
+          status: "ACTIVE",
+          moveInDate: inDays(-300),
+        },
+      }),
+    );
+  }
+
+  // Three months of rent charges. Everyone pays on time except Derrick Hall,
+  // who is two months behind and has picked up a late fee.
+  for (let offset = -2; offset <= 0; offset++) {
+    const { key, first } = monthKey(offset);
+    for (const lease of leases) {
+      await prisma.charge.create({
+        data: {
+          leaseId: lease.id,
+          type: "RENT",
+          description: "Monthly rent",
+          amount: lease.rentAmount,
+          dueDate: first,
+          period: key,
+        },
+      });
+
+      const behind = lease.tenantId === tenants[3].id && offset >= -1;
+      if (!behind) {
+        const receivedAt = new Date(first);
+        receivedAt.setDate(receivedAt.getDate() + 2);
+        await prisma.payment.create({
+          data: {
+            leaseId: lease.id,
+            amount: lease.rentAmount,
+            receivedAt,
+            method: "ACH",
+            reference: `ACH-${key}`,
+          },
+        });
+      }
+    }
+  }
+
+  const lateLease = leases[3];
+  const lastMonth = monthKey(-1);
+  await prisma.charge.create({
+    data: {
+      leaseId: lateLease.id,
+      type: "LATE_FEE",
+      description: "Late fee",
+      amount: 75,
+      dueDate: inDays(-25),
+      period: lastMonth.key,
+    },
+  });
+  await prisma.lease.update({
+    where: { id: lateLease.id },
+    data: { status: "NOTICE", notes: "Two months behind. Pay-or-quit notice served." },
+  });
+
+  await prisma.workOrder.createMany({
+    data: [
+      {
+        propertyId: fourplex.id,
+        unitId: fourplex.units[3].id,
+        vendorId: vendors[1].id,
+        title: "AC compressor failed — unit 4 uninhabitable",
+        description: "Compressor seized. Unit is down until replaced.",
+        category: "HVAC",
+        priority: "EMERGENCY",
+        status: "ASSIGNED",
+        reportedAt: inDays(-3),
+        scheduledFor: inDays(1),
+        estimatedCost: 4200,
+      },
+      {
+        propertyId: duplex.id,
+        unitId: duplex.units[0].id,
+        vendorId: vendors[0].id,
+        title: "Kitchen faucet dripping",
+        category: "PLUMBING",
+        priority: "NORMAL",
+        status: "IN_PROGRESS",
+        reportedAt: inDays(-9),
+        estimatedCost: 180,
+      },
+      {
+        propertyId: fourplex.id,
+        unitId: fourplex.units[2].id,
+        title: "Turn unit 3 for new tenant",
+        description: "Paint, deep clean, replace blinds.",
+        category: "TURNOVER",
+        priority: "HIGH",
+        status: "OPEN",
+        reportedAt: inDays(-16),
+        estimatedCost: 1400,
+      },
+      {
+        propertyId: duplex.id,
+        unitId: duplex.units[1].id,
+        vendorId: vendors[0].id,
+        title: "Water heater replacement",
+        category: "PLUMBING",
+        priority: "HIGH",
+        status: "COMPLETED",
+        reportedAt: inDays(-45),
+        completedAt: inDays(-41),
+        estimatedCost: 1100,
+        actualCost: 1240,
+      },
+    ],
+  });
+
+  await prisma.expense.createMany({
+    data: [
+      {
+        propertyId: duplex.id,
+        vendorId: vendors[0].id,
+        category: "REPAIRS",
+        description: "Water heater replacement",
+        amount: 1240,
+        paidAt: inDays(-41),
+      },
+      {
+        propertyId: duplex.id,
+        category: "INSURANCE",
+        description: "Quarterly property insurance",
+        amount: 640,
+        paidAt: inDays(-20),
+      },
+      {
+        propertyId: fourplex.id,
+        category: "UTILITIES",
+        description: "Common area water & electric",
+        amount: 385,
+        paidAt: inDays(-12),
+      },
+      {
+        propertyId: fourplex.id,
+        vendorId: vendors[2].id,
+        category: "TURNOVER",
+        description: "Unit 3 deep clean",
+        amount: 275,
+        paidAt: inDays(-8),
+      },
+      {
+        propertyId: fourplex.id,
+        category: "TAXES",
+        description: "Property tax installment",
+        amount: 1820,
+        paidAt: inDays(-15),
+      },
+    ],
+  });
+
   console.log(
-    "✅ Seeded sample contacts, deals, activities, timeshares, points, benefits, reservations and fees.",
+    "✅ Seeded properties, units, leases, ledger, maintenance, vendors, contacts, deals, activities, timeshares, points, reservations and fees.",
   );
 }
 

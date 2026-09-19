@@ -116,6 +116,8 @@ export const DEPOSIT_STATUS = [
 
 export const CONTACT_TYPES = [
   { value: "LEAD", label: "Lead" },
+  { value: "TENANT", label: "Tenant" },
+  { value: "OWNER", label: "Owner" },
   { value: "CLIENT", label: "Client" },
   { value: "PARTNER", label: "Partner" },
   { value: "GUEST", label: "Guest traveller" },
@@ -191,6 +193,137 @@ export function weightedCommissionOf(deal: {
   probability: number;
 }): number {
   return (commissionOf(deal) * deal.probability) / 100;
+}
+
+export const PROPERTY_TYPES = [
+  { value: "SINGLE_FAMILY", label: "Single family" },
+  { value: "MULTI_FAMILY", label: "Multi-family" },
+  { value: "APARTMENT", label: "Apartment building" },
+  { value: "COMMERCIAL", label: "Commercial" },
+  { value: "ALF", label: "Assisted living / group home" },
+  { value: "SHORT_TERM", label: "Short-term rental" },
+];
+
+export const UNIT_STATUS = [
+  { value: "VACANT", label: "Vacant" },
+  { value: "OCCUPIED", label: "Occupied" },
+  { value: "NOTICE", label: "On notice" },
+  { value: "DOWN", label: "Down / not rentable" },
+];
+
+export const LEASE_STATUS = [
+  { value: "PENDING", label: "Pending" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "NOTICE", label: "On notice" },
+  { value: "ENDED", label: "Ended" },
+  { value: "EVICTION", label: "Eviction" },
+];
+
+export const CHARGE_TYPES = [
+  { value: "RENT", label: "Rent" },
+  { value: "LATE_FEE", label: "Late fee" },
+  { value: "UTILITY", label: "Utility rebill" },
+  { value: "DEPOSIT", label: "Deposit" },
+  { value: "REPAIR", label: "Tenant repair" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const PAYMENT_METHODS = [
+  { value: "ACH", label: "ACH / bank transfer" },
+  { value: "CARD", label: "Card" },
+  { value: "CHECK", label: "Check" },
+  { value: "CASH", label: "Cash" },
+  { value: "MONEY_ORDER", label: "Money order" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const TRADES = [
+  { value: "GENERAL", label: "General / handyman" },
+  { value: "PLUMBING", label: "Plumbing" },
+  { value: "ELECTRICAL", label: "Electrical" },
+  { value: "HVAC", label: "HVAC" },
+  { value: "APPLIANCE", label: "Appliance" },
+  { value: "LANDSCAPING", label: "Landscaping" },
+  { value: "CLEANING", label: "Cleaning" },
+  { value: "ROOFING", label: "Roofing" },
+  { value: "PEST", label: "Pest control" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const WORK_ORDER_CATEGORIES = [
+  ...TRADES.filter((t) => t.value !== "OTHER"),
+  { value: "TURNOVER", label: "Unit turnover" },
+  { value: "OTHER", label: "Other" },
+];
+
+export const WORK_ORDER_PRIORITY = [
+  { value: "LOW", label: "Low" },
+  { value: "NORMAL", label: "Normal" },
+  { value: "HIGH", label: "High" },
+  { value: "EMERGENCY", label: "Emergency" },
+];
+
+export const WORK_ORDER_STATUS = [
+  { value: "OPEN", label: "Open" },
+  { value: "ASSIGNED", label: "Assigned" },
+  { value: "IN_PROGRESS", label: "In progress" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+export const OPEN_WORK_ORDER_STATUS = ["OPEN", "ASSIGNED", "IN_PROGRESS"];
+
+export const EXPENSE_CATEGORIES = [
+  { value: "REPAIRS", label: "Repairs" },
+  { value: "MAINTENANCE", label: "Maintenance" },
+  { value: "TURNOVER", label: "Turnover" },
+  { value: "TAXES", label: "Property taxes" },
+  { value: "INSURANCE", label: "Insurance" },
+  { value: "UTILITIES", label: "Utilities" },
+  { value: "MORTGAGE", label: "Mortgage" },
+  { value: "MGMT_FEE", label: "Management fee" },
+  { value: "LEGAL", label: "Legal & professional" },
+  { value: "SUPPLIES", label: "Supplies" },
+  { value: "OTHER", label: "Other" },
+];
+
+// A lease's outstanding balance: everything charged minus everything paid.
+export function leaseBalance(lease: {
+  charges: { amount: number }[];
+  payments: { amount: number }[];
+}): number {
+  const charged = lease.charges.reduce((s, c) => s + c.amount, 0);
+  const paid = lease.payments.reduce((s, p) => s + p.amount, 0);
+  return charged - paid;
+}
+
+// "2026-09" — the period key a rent charge is filed under.
+export function periodKey(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function formatPeriod(period: string | null | undefined): string {
+  if (!period) return "—";
+  const [y, m] = period.split("-").map(Number);
+  if (!y || !m) return period;
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+// Single-line address for a property.
+export function propertyAddress(p: {
+  addressLine1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+}): string {
+  const street = p.addressLine1 ?? "";
+  const rest = [p.city, [p.state, p.zip].filter(Boolean).join(" ")]
+    .filter(Boolean)
+    .join(", ");
+  return [street, rest].filter(Boolean).join(" · ");
 }
 
 export function labelFor(

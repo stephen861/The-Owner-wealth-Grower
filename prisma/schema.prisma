@@ -196,7 +196,7 @@ model Contact {
   email          String?
   phone          String?
   company        String?
-  type           String   @default("LEAD") // LEAD | CLIENT | PARTNER | GUEST
+  type           String   @default("LEAD") // LEAD | CLIENT | TENANT | OWNER | PARTNER | GUEST
   status         String   @default("NEW") // NEW | CONTACTED | QUALIFIED | ACTIVE | DORMANT | LOST
   source         String? // REFERRAL | PRESENTATION | SOCIAL | WEBSITE | REPEAT | OTHER
   city           String?
@@ -208,9 +208,11 @@ model Contact {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  deals        Deal[]
-  activities   Activity[]
-  reservations Reservation[]
+  deals            Deal[]
+  activities       Activity[]
+  reservations     Reservation[]
+  ownedProperties  Property[] @relation("PropertyOwner")
+  leases           Lease[]    @relation("LeaseTenant")
 }
 
 // A revenue opportunity moving through the sales pipeline.
@@ -250,4 +252,185 @@ model Activity {
   doneAt      DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Property management: the Rent Manager replacement. Properties hold units,
+// units hold leases, leases carry a charge/payment ledger, and work orders +
+// expenses roll up into owner statements.
+// ---------------------------------------------------------------------------
+
+// A building or address you own or manage. Owners are Contacts of type OWNER.
+model Property {
+  id            String   @id @default(cuid())
+  name          String // friendly name, e.g. "Maple Street Duplex"
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  state         String?
+  zip           String?
+  type          String   @default("SINGLE_FAMILY") // SINGLE_FAMILY | MULTI_FAMILY | APARTMENT | COMMERCIAL | ALF | SHORT_TERM
+  ownerId       String? // the Contact who owns it (you, or a managed client)
+  owner         Contact? @relation("PropertyOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  managementFeeRate Float @default(0) // percent of collected rent you keep
+  purchaseDate  DateTime?
+  purchasePrice Float?
+  marketValue   Float?
+  mortgageBalance Float?
+  active        Boolean  @default(true)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  units      Unit[]
+  workOrders WorkOrder[]
+  expenses   Expense[]
+}
+
+// A rentable space inside a property. Single-family homes get one unit.
+model Unit {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  label      String // "101", "A", "Main"
+  beds       Float    @default(0)
+  baths      Float    @default(0)
+  sqft       Int?
+  marketRent Float    @default(0) // asking rent when vacant
+  status     String   @default("VACANT") // VACANT | OCCUPIED | NOTICE | DOWN
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  leases     Lease[]
+  workOrders WorkOrder[]
+  expenses   Expense[]
+
+  @@unique([propertyId, label])
+}
+
+// A tenancy: one unit, one primary tenant (a Contact), for a term.
+model Lease {
+  id            String   @id @default(cuid())
+  unitId        String
+  unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Contact  @relation("LeaseTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  startDate     DateTime
+  endDate       DateTime?
+  rentAmount    Float    @default(0) // recurring rent per period
+  rentDueDay    Int      @default(1) // day of month rent posts
+  depositAmount Float    @default(0)
+  depositHeld   Float    @default(0)
+  lateFeeAmount Float    @default(0)
+  lateFeeAfterDay Int    @default(5) // grace period in days
+  status        String   @default("ACTIVE") // PENDING | ACTIVE | NOTICE | ENDED | EVICTION
+  moveInDate    DateTime?
+  moveOutDate   DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  charges  Charge[]
+  payments Payment[]
+}
+
+// Money owed on a lease: rent posted for a period, a late fee, a utility
+// rebill, a damage charge.
+model Charge {
+  id          String   @id @default(cuid())
+  leaseId     String
+  lease       Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  type        String   @default("RENT") // RENT | LATE_FEE | UTILITY | DEPOSIT | REPAIR | OTHER
+  description String?
+  amount      Float
+  dueDate     DateTime
+  period      String? // "2026-09" for the rent month this charge covers
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([leaseId, period, type])
+}
+
+// Money received against a lease.
+model Payment {
+  id         String   @id @default(cuid())
+  leaseId    String
+  lease      Lease    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  amount     Float
+  receivedAt DateTime @default(now())
+  method     String   @default("ACH") // CASH | CHECK | ACH | CARD | MONEY_ORDER | OTHER
+  reference  String? // check number, confirmation code
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// A trade or service provider you dispatch work to.
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String
+  trade        String   @default("GENERAL") // PLUMBING | ELECTRICAL | HVAC | APPLIANCE | GENERAL | LANDSCAPING | CLEANING | ROOFING | PEST | OTHER
+  contactName  String?
+  email        String?
+  phone        String?
+  hourlyRate   Float?
+  insuredUntil DateTime?
+  w9OnFile     Boolean  @default(false)
+  active       Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workOrders WorkOrder[]
+  expenses   Expense[]
+}
+
+// A maintenance request against a property or unit.
+model WorkOrder {
+  id            String   @id @default(cuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitId        String?
+  unit          Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  vendorId      String?
+  vendor        Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  title         String
+  description   String?
+  category      String   @default("GENERAL") // PLUMBING | ELECTRICAL | HVAC | APPLIANCE | GENERAL | LANDSCAPING | CLEANING | ROOFING | PEST | TURNOVER | OTHER
+  priority      String   @default("NORMAL") // LOW | NORMAL | HIGH | EMERGENCY
+  status        String   @default("OPEN") // OPEN | ASSIGNED | IN_PROGRESS | COMPLETED | CANCELLED
+  reportedAt    DateTime @default(now())
+  scheduledFor  DateTime?
+  completedAt   DateTime?
+  estimatedCost Float?
+  actualCost    Float?
+  billToTenant  Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  expenses Expense[]
+}
+
+// An operating cost against a property. Feeds the owner statement.
+model Expense {
+  id          String   @id @default(cuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitId      String?
+  unit        Unit?    @relation(fields: [unitId], references: [id], onDelete: SetNull)
+  vendorId    String?
+  vendor      Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  category    String   @default("REPAIRS") // REPAIRS | MAINTENANCE | TAXES | INSURANCE | UTILITIES | MORTGAGE | MGMT_FEE | LEGAL | SUPPLIES | TURNOVER | OTHER
+  description String?
+  amount      Float
+  paidAt      DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([propertyId, paidAt])
 }

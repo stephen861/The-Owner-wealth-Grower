@@ -7,14 +7,19 @@ import {
   formatCurrency,
   formatDate,
   formatNumber,
+  formatPeriod,
   labelFor,
+  leaseBalance,
   nights,
+  periodKey,
   weightedCommissionOf,
   ACTIVITY_ICONS,
   DEAL_STAGES,
   EXCHANGE_NETWORKS,
   FEE_TYPES,
   OPEN_STAGES,
+  OPEN_WORK_ORDER_STATUS,
+  WORK_ORDER_PRIORITY,
 } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +39,10 @@ export default async function DashboardPage() {
     deals,
     openActivities,
     contactCount,
+    properties,
+    openWorkOrders,
+    allPayments,
+    allCharges,
   ] = await Promise.all([
     prisma.timeshare.findMany({ where: { active: true } }),
     prisma.pointsAccount.findMany({ where: { useYear: { gte: year } } }),
@@ -62,6 +71,26 @@ export default async function DashboardPage() {
       include: { contact: true },
     }),
     prisma.contact.count(),
+    prisma.property.findMany({
+      where: { active: true },
+      include: {
+        units: {
+          include: {
+            leases: {
+              where: { status: { in: ["ACTIVE", "NOTICE"] } },
+              include: { tenant: true, charges: true, payments: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.workOrder.findMany({
+      where: { status: { in: OPEN_WORK_ORDER_STATUS } },
+      orderBy: { reportedAt: "asc" },
+      include: { property: true, unit: true, vendor: true },
+    }),
+    prisma.payment.findMany({ select: { amount: true, receivedAt: true } }),
+    prisma.charge.findMany({ select: { amount: true, period: true } }),
   ]);
 
   const availablePoints = pointsAccounts.reduce(
@@ -78,6 +107,40 @@ export default async function DashboardPage() {
     (s, p) => s + Math.max(0, (p.value ?? 0) - p.used),
     0,
   );
+
+  // Property-management metrics: occupancy, collections, delinquency.
+  const period = periodKey();
+  const allUnits = properties.flatMap((p) => p.units);
+  const occupiedUnits = allUnits.filter((u) => u.status === "OCCUPIED").length;
+  const occupancy =
+    allUnits.length === 0 ? 0 : Math.round((occupiedUnits / allUnits.length) * 100);
+
+  const activeLeases = allUnits.flatMap((u) => u.leases);
+  const scheduledRent = activeLeases.reduce((s, l) => s + l.rentAmount, 0);
+
+  const billedThisPeriod = allCharges
+    .filter((c) => c.period === period)
+    .reduce((s, c) => s + c.amount, 0);
+  const collectedThisPeriod = allPayments
+    .filter((p) => periodKey(p.receivedAt) === period)
+    .reduce((s, p) => s + p.amount, 0);
+  const collectionRate =
+    billedThisPeriod === 0 ? 0 : Math.round((collectedThisPeriod / billedThisPeriod) * 100);
+
+  const delinquent = properties
+    .flatMap((p) =>
+      p.units.flatMap((u) =>
+        u.leases.map((l) => ({
+          lease: l,
+          unit: u,
+          property: p,
+          balance: leaseBalance(l),
+        })),
+      ),
+    )
+    .filter((x) => x.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+  const totalDelinquent = delinquent.reduce((s, d) => s + d.balance, 0);
 
   // Client-side metrics: what is in flight and what is owed a follow-up.
   const openDeals = deals.filter((d) => OPEN_STAGES.includes(d.stage));
@@ -146,8 +209,8 @@ export default async function DashboardPage() {
           <h1>Dashboard</h1>
           <p>Your clients, your pipeline and your portfolio at a glance.</p>
         </div>
-        <Link className="btn" href="/timeshares/new">
-          + Add timeshare
+        <Link className="btn" href="/properties">
+          + Add property
         </Link>
       </div>
 
@@ -165,6 +228,161 @@ export default async function DashboardPage() {
           </div>
         </div>
       ) : null}
+
+      <h2 className="group-heading">Property management</h2>
+      <div className="cards">
+        <div className="card">
+          <div className="label">Occupancy</div>
+          <div className="value">{occupancy}%</div>
+          <div className="sub">
+            {occupiedUnits} of {allUnits.length} units · {properties.length} properties
+          </div>
+        </div>
+        <div className="card">
+          <div className="label">Scheduled rent</div>
+          <div className="value">{formatCurrency(scheduledRent)}</div>
+          <div className="sub">Per month, {activeLeases.length} active leases</div>
+        </div>
+        <div className="card">
+          <div className="label">Collected {formatPeriod(period)}</div>
+          <div className="value">{collectionRate}%</div>
+          <div className="sub">
+            {formatCurrency(collectedThisPeriod)} of {formatCurrency(billedThisPeriod)}
+          </div>
+        </div>
+        <div className="card">
+          <div className="label">Delinquent</div>
+          <div className="value">{formatCurrency(totalDelinquent)}</div>
+          <div className="sub">{delinquent.length} leases behind</div>
+        </div>
+        <div className="card">
+          <div className="label">Open work orders</div>
+          <div className="value">{openWorkOrders.length}</div>
+          <div className="sub">
+            {openWorkOrders.filter((w) => w.priority === "EMERGENCY").length} emergency ·{" "}
+            {openWorkOrders.filter((w) => !w.vendorId).length} unassigned
+          </div>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Who owes you money</h2>
+          <Link className="btn ghost small" href="/leases">
+            Rent roll
+          </Link>
+        </div>
+        {delinquent.length === 0 ? (
+          <div className="empty">Every tenant is current. 🎉</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Unit</th>
+                <th className="right">Monthly rent</th>
+                <th className="right">Balance</th>
+                <th className="right">Months behind</th>
+              </tr>
+            </thead>
+            <tbody>
+              {delinquent.slice(0, 8).map(({ lease, unit, property, balance }) => {
+                const months = lease.rentAmount > 0 ? balance / lease.rentAmount : 0;
+                return (
+                  <tr key={lease.id}>
+                    <td>
+                      <Link href={`/leases/${lease.id}`}>
+                        <strong>{contactName(lease.tenant)}</strong>
+                      </Link>
+                      {lease.tenant.phone ? (
+                        <div className="subnote">{lease.tenant.phone}</div>
+                      ) : null}
+                    </td>
+                    <td>
+                      <Link href={`/properties/${property.id}`} className="link">
+                        {property.name}
+                      </Link>
+                      <div className="subnote">Unit {unit.label}</div>
+                    </td>
+                    <td className="right">{formatCurrency(lease.rentAmount)}</td>
+                    <td className="right">
+                      <span className="badge red">{formatCurrency(balance)}</span>
+                    </td>
+                    <td className="right">
+                      <span className={`badge ${months >= 2 ? "red" : "amber"}`}>
+                        {months.toFixed(1)}×
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="section-title">
+          <h2>Work orders needing attention</h2>
+          <Link className="btn ghost small" href="/maintenance">
+            All maintenance
+          </Link>
+        </div>
+        {openWorkOrders.length === 0 ? (
+          <div className="empty">No open work orders.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Work order</th>
+                <th>Where</th>
+                <th>Vendor</th>
+                <th>Priority</th>
+                <th className="right">Age</th>
+              </tr>
+            </thead>
+            <tbody>
+              {openWorkOrders.slice(0, 6).map((w) => {
+                const age = Math.abs(daysUntil(w.reportedAt) ?? 0);
+                return (
+                  <tr key={w.id}>
+                    <td>
+                      <strong>{w.title}</strong>
+                    </td>
+                    <td>
+                      <Link href={`/properties/${w.propertyId}`} className="link">
+                        {w.property.name}
+                      </Link>
+                      {w.unit ? <div className="subnote">Unit {w.unit.label}</div> : null}
+                    </td>
+                    <td>
+                      {w.vendor?.name ?? <span className="badge amber">Unassigned</span>}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${
+                          w.priority === "EMERGENCY"
+                            ? "red"
+                            : w.priority === "HIGH"
+                              ? "amber"
+                              : ""
+                        }`}
+                      >
+                        {labelFor(WORK_ORDER_PRIORITY, w.priority)}
+                      </span>
+                    </td>
+                    <td className="right">
+                      <span className={`badge ${age > 14 ? "red" : age > 5 ? "amber" : ""}`}>
+                        {age}d
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <h2 className="group-heading">Revenue engine</h2>
       <div className="cards">

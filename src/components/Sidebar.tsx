@@ -9,6 +9,16 @@ const groups = [
     links: [{ href: "/", label: "Dashboard", icon: "📊" }],
   },
   {
+    title: "Property management",
+    links: [
+      { href: "/properties", label: "Properties", icon: "🏘️" },
+      { href: "/leases", label: "Rent roll", icon: "📄" },
+      { href: "/maintenance", label: "Maintenance", icon: "🔧" },
+      { href: "/vendors", label: "Vendors", icon: "🧰" },
+      { href: "/owners", label: "Owner statements", icon: "🧾" },
+    ],
+  },
+  {
     title: "Clients",
     links: [
       { href: "/contacts", label: "Contacts", icon: "👥" },
@@ -17,7 +27,7 @@ const groups = [
     ],
   },
   {
-    title: "Portfolio",
+    title: "Timeshare portfolio",
     links: [
       { href: "/timeshares", label: "Timeshares", icon: "🏖️" },
       { href: "/points", label: "Points & Benefits", icon: "⭐" },

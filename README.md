@@ -1,13 +1,45 @@
-# 🌴 Owner Wealth Grower — Timeshare Travel CRM
+# 🌴 Owner Wealth Grower — Operations CRM
 
-A self-hosted CRM for managing your **timeshares** and **timeshare benefits**. Track
-ownership contracts, points balances by use year, membership perks, reservations/trips,
-and the fees & finances that come with ownership — all in one place.
+A self-hosted CRM for the whole operation: the **rental portfolio** you own and manage
+(a Rent Manager replacement), the **clients and deals** that feed it, and the
+**timeshare benefits** that round it out.
 
 Built with **Next.js (App Router) + TypeScript + Prisma + SQLite**. No external accounts
 required; your data lives in a local SQLite file.
 
 ## Features
+
+### Property management (the Rent Manager replacement)
+
+- **Properties & units** — buildings you own or manage, with owner, management-fee
+  rate, purchase/market value, mortgage balance and per-unit beds/baths/sqft/market
+  rent. Occupancy and equity roll up across the portfolio.
+- **Rent roll** — every lease with term, rent, due day, deposit held, late-fee terms
+  and live balance. Delinquency is ranked by how far behind each tenant is.
+- **Month-end run** — one button posts the month's rent to every active lease, a
+  second assesses late fees on past-grace balances. Both are **idempotent**: a lease
+  already billed for the period is skipped, so re-running never double-bills.
+- **Tenant ledger** — charges and payments interleaved into one running-balance
+  statement per lease, covering rent, late fees, utility rebills and repair charges.
+- **Maintenance** — work orders by property/unit with priority, vendor assignment and
+  age. Closing one books the cost as a property expense and, when flagged billable,
+  rebills the tenant automatically.
+- **Vendors** — your trade bench with rates, open job counts, spend to date, and W-9 /
+  insurance compliance flags.
+- **Owner statements** — per-owner monthly statement: rent collected, operating
+  expenses, your management fee, and net distributable, with an expense breakdown by
+  category.
+
+### Clients & pipeline
+
+- **Contacts** — one people table for tenants, owners, leads, clients and partners,
+  with source, status, tags and next follow-up date.
+- **Pipeline** — deals by stage with value, commission rate and probability, plus a
+  weighted commission forecast and win rate.
+- **Activities** — a follow-up queue split into overdue / due today / upcoming, with
+  a per-contact timeline of every touchpoint.
+
+### Timeshare portfolio
 
 - **Timeshares** — every contract/membership you own: brand, resort, ownership type
   (points / deeded week / fractional / RTU), contract & member numbers, annual point
@@ -25,10 +57,13 @@ required; your data lives in a local SQLite file.
   confirmation numbers, guest certificates, and status tracking.
 - **Fees & Finances** — maintenance fees, special assessments, club dues, loans and
   taxes, with due dates, overdue flags, and paid/unpaid tracking.
-- **Dashboard** — portfolio snapshot: timeshare count, available points, annual
-  allotment, outstanding fees, exchange deposits, travel rewards balance, upcoming
-  trips, fees coming due, expiring deposits, and **membership renewals & expiring
-  rewards** in the next 120 days.
+### Dashboard
+
+Three stacked sections — **Property management** (occupancy, scheduled rent, collection
+rate, delinquency, open work orders, plus who owes you money and which work orders need
+attention), **Revenue engine** (pipeline, weighted commission forecast, commission won,
+follow-ups due, deals closing soon), and **Portfolio** (points, fees, exchange deposits,
+membership renewals and expiring rewards).
 
 ## Getting started
 
@@ -62,9 +97,32 @@ To start from an empty database instead of sample data, run
 
 ## Data model
 
+### Property management
+
+| Model       | Purpose                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `Property`  | A building you own or manage; owner + management-fee rate          |
+| `Unit`      | A rentable space inside a property                                 |
+| `Lease`     | A tenancy: one unit, one tenant, a term and rent terms             |
+| `Charge`    | Money owed on a lease (rent, late fee, utility, repair)            |
+| `Payment`   | Money received against a lease                                     |
+| `Vendor`    | A trade you dispatch work to                                       |
+| `WorkOrder` | A maintenance request against a property or unit                   |
+| `Expense`   | An operating cost against a property; feeds the owner statement    |
+
+### Clients
+
+| Model      | Purpose                                                             |
+| ---------- | ------------------------------------------------------------------- |
+| `Contact`  | A person: tenant, owner, lead, client, partner or guest             |
+| `Deal`     | A revenue opportunity moving through the pipeline                   |
+| `Activity` | A logged touchpoint or an open follow-up task                       |
+
+### Timeshare portfolio
+
 | Model           | Purpose                                                          |
 | --------------- | ---------------------------------------------------------------- |
-| `Timeshare`          | An owned contract/membership (parent of everything else)    |
+| `Timeshare`          | An owned contract/membership                                |
 | `PointsAccount`      | Point balance for one use year on a timeshare               |
 | `Benefit`            | A membership perk/tier benefit with optional usage allowance|
 | `ExchangeMembership` | An exchange network or travel club (RCI, Interval, Costco…) |
@@ -74,6 +132,16 @@ To start from an empty database instead of sample data, run
 | `Fee`                | A financial obligation (maintenance, assessment, dues, loan…)|
 
 The database file (`prisma/dev.db`) is git-ignored — your data stays local.
+
+## Not yet covered
+
+Rent Manager also does these; this app does not yet:
+
+- Full double-entry general ledger, bank reconciliation and 1099 filing
+- Tenant/owner self-service portals and online rent payment processing
+- Built-in e-signature for leases, and document storage
+- Automated tenant SMS/email reminders (the follow-up queue is manual today)
+- Multi-user accounts and permissions — this is a single-operator app
 
 ## Tech notes
 
