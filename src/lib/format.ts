@@ -121,3 +121,42 @@ export function labelFor(
   if (!value) return "—";
   return list.find((x) => x.value === value)?.label ?? value;
 }
+
+// ── Leasing agent ───────────────────────────────────────────────
+export const PROSPECT_STATUS = [
+  { value: "NEW", label: "New" },
+  { value: "PRESCREENED", label: "Pre-qualified" },
+  { value: "TOUR_SCHEDULED", label: "Tour scheduled" },
+  { value: "APPLYING", label: "Applying" },
+  { value: "WAITLIST", label: "Waitlist" },
+  { value: "LEASED", label: "Leased" },
+  { value: "NOT_ELIGIBLE", label: "Not eligible" },
+  { value: "CLOSED", label: "Closed" },
+];
+
+export const HOUSING_PROGRAMS = [
+  { value: "LIHTC", label: "LIHTC (tax credit)" },
+  { value: "SECTION_8", label: "Section 8 (project-based)" },
+  { value: "PBV", label: "Project-based voucher" },
+  { value: "HOME", label: "HOME program" },
+  { value: "MIXED", label: "Mixed-income" },
+  { value: "MARKET", label: "Market rate" },
+];
+
+export const UNIT_STATUS = [
+  { value: "AVAILABLE", label: "Available" },
+  { value: "ON_HOLD", label: "On hold" },
+  { value: "LEASED", label: "Leased" },
+  { value: "DOWN", label: "Down / make-ready" },
+];
+
+export function timeAgo(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const d = typeof value === "string" ? new Date(value) : value;
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}

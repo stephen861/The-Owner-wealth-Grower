@@ -10,10 +10,13 @@ const links = [
   { href: "/exchanges", label: "Exchanges", icon: "🔁" },
   { href: "/reservations", label: "Reservations", icon: "🗓️" },
   { href: "/fees", label: "Fees & Finances", icon: "💳" },
+  { href: "/leasing", label: "FGW Leasing Agent", icon: "🏢" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  // The public prospect chat page has no staff navigation.
+  if (pathname.startsWith("/chat")) return null;
   return (
     <aside className="sidebar">
       <div className="brand">

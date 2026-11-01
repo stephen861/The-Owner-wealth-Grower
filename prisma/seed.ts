@@ -366,6 +366,128 @@ async function main() {
   });
 
   console.log("✅ Seeded sample timeshares, points, benefits, reservations and fees.");
+
+  await seedLeasing(inDays);
+}
+
+// FGW affordable-housing leasing demo data. Income limits below are SAMPLE
+// figures — replace with your area's current HUD / state agency table.
+async function seedLeasing(inDays: (n: number) => Date) {
+  await prisma.message.deleteMany();
+  await prisma.tour.deleteMany();
+  await prisma.prospect.deleteMany();
+  await prisma.unit.deleteMany();
+  await prisma.incomeLimit.deleteMany();
+  await prisma.property.deleteMany();
+
+  const year = new Date().getFullYear();
+  const limits60 = [45360, 51840, 58320, 64740, 69960, 75120, 80340, 85500];
+  const limitRows = (propertyId: string) =>
+    [30, 50, 60].flatMap((ami) =>
+      limits60.map((max, i) => ({
+        propertyId,
+        amiPercent: ami,
+        householdSize: i + 1,
+        maxIncome: Math.round((max * ami) / 60),
+        year,
+      })),
+    );
+
+  const oaks = await prisma.property.create({
+    data: {
+      name: "FGW Oak Terrace Apartments",
+      address: "1200 Oak Terrace Blvd",
+      city: "Atlanta",
+      state: "GA",
+      program: "LIHTC",
+      acceptsVouchers: true,
+      officePhone: "(555) 010-0101",
+      officeHours: "Mon–Fri 9am–5pm, Sat 10am–2pm",
+      amenities: "On-site laundry, playground, community room, computer lab, bus line at entrance, free parking",
+      policies:
+        "Cats and dogs under 40 lb allowed ($25/mo pet rent; assistance animals are not pets and have no fee). Water/trash included. Screening: no evictions in last 3 years; credit is reviewed but not a sole reason to deny. All adult household members must apply.",
+      applicationUrl: "https://example.com/fgw/apply/oak-terrace",
+      applicationFee: 35,
+      minIncomeMultiple: 2,
+    },
+  });
+  const maple = await prisma.property.create({
+    data: {
+      name: "FGW Maple Commons Senior & Family",
+      address: "88 Maple Commons Way",
+      city: "Decatur",
+      state: "GA",
+      program: "MIXED",
+      acceptsVouchers: true,
+      officePhone: "(555) 010-0102",
+      officeHours: "Mon–Fri 8:30am–4:30pm",
+      amenities: "Elevator, fitness room, garden plots, after-school program, in-unit washer/dryer in 2-3BR",
+      policies: "No pets except assistance animals. Tenant pays electric. Application fee waived for voucher holders.",
+      applicationUrl: "https://example.com/fgw/apply/maple-commons",
+      applicationFee: 25,
+      minIncomeMultiple: 2.5,
+    },
+  });
+  await prisma.incomeLimit.createMany({ data: [...limitRows(oaks.id), ...limitRows(maple.id)] });
+
+  await prisma.unit.createMany({
+    data: [
+      { propertyId: oaks.id, unitNumber: "A-104", bedrooms: 1, bathrooms: 1, sqft: 680, rent: 865, amiPercent: 50, accessible: true },
+      { propertyId: oaks.id, unitNumber: "B-210", bedrooms: 2, bathrooms: 1, sqft: 910, rent: 1040, amiPercent: 60 },
+      { propertyId: oaks.id, unitNumber: "B-305", bedrooms: 2, bathrooms: 1, sqft: 910, rent: 615, amiPercent: 30, availableDate: inDays(21) },
+      { propertyId: oaks.id, unitNumber: "C-112", bedrooms: 3, bathrooms: 2, sqft: 1180, rent: 1195, amiPercent: 60 },
+      { propertyId: oaks.id, unitNumber: "C-118", bedrooms: 3, bathrooms: 2, sqft: 1180, rent: 1195, amiPercent: 60, status: "LEASED" },
+      { propertyId: maple.id, unitNumber: "101", bedrooms: 0, bathrooms: 1, sqft: 480, rent: 720, amiPercent: 50 },
+      { propertyId: maple.id, unitNumber: "214", bedrooms: 1, bathrooms: 1, sqft: 700, rent: 980, amiPercent: 60, accessible: true },
+      { propertyId: maple.id, unitNumber: "330", bedrooms: 2, bathrooms: 2, sqft: 1010, rent: 1650, amiPercent: 0, availableDate: inDays(10) },
+    ],
+  });
+
+  const maria = await prisma.prospect.create({
+    data: {
+      name: "Maria",
+      phone: "+15555550123",
+      source: "SMS",
+      preferredLanguage: "es",
+      householdSize: 3,
+      annualIncome: 42000,
+      hasVoucher: false,
+      bedroomsWanted: 2,
+      propertyId: oaks.id,
+      status: "TOUR_SCHEDULED",
+      lastMessageAt: inDays(-1),
+    },
+  });
+  const ago = (h: number) => new Date(Date.now() - h * 3600_000);
+  await prisma.message.createMany({
+    data: [
+      { prospectId: maria.id, direction: "IN", author: "PROSPECT", channel: "SMS", body: "Hola, tienen apartamentos de 2 recámaras?", createdAt: ago(26) },
+      { prospectId: maria.id, direction: "OUT", author: "AGENT", channel: "SMS", body: "¡Hola! Sí, en FGW Oak Terrace tenemos 2 recámaras desde $615/mes (unidad de 30% AMI, disponible en 3 semanas) y $1,040/mes (60% AMI, disponible ya). ¿Cuántas personas vivirán en el hogar y cuál es el ingreso anual total del hogar?", createdAt: ago(26) },
+      { prospectId: maria.id, direction: "IN", author: "PROSPECT", channel: "SMS", body: "Somos 3, ganamos como 42 mil al año. No tengo voucher", createdAt: ago(25.9) },
+      { prospectId: maria.id, direction: "OUT", author: "AGENT", channel: "SMS", body: "¡Gracias! Según nuestra pre-evaluación, su hogar pre-califica para la unidad B-210 ($1,040) (la B-305 no aplica porque su ingreso supera el límite de 30% AMI). Esto está sujeto a verificación. ¿Le gustaría agendar una visita?", createdAt: ago(25.9) },
+    ],
+  });
+  const tourAt = inDays(2);
+  tourAt.setHours(11, 0, 0, 0);
+  await prisma.tour.create({ data: { prospectId: maria.id, propertyId: oaks.id, scheduledAt: tourAt, type: "IN_PERSON" } });
+
+  const web = await prisma.prospect.create({
+    data: {
+      webSessionId: "demo-session-0000000001",
+      source: "WEB",
+      needsHuman: true,
+      escalationReason: "Reasonable accommodation request (assistance animal)",
+      lastMessageAt: ago(2),
+    },
+  });
+  await prisma.message.createMany({
+    data: [
+      { prospectId: web.id, direction: "IN", author: "PROSPECT", channel: "WEB", body: "Do you allow emotional support animals at Maple Commons? I have documentation.", createdAt: ago(2) },
+      { prospectId: web.id, direction: "OUT", author: "AGENT", channel: "WEB", body: "Thank you for asking — we're happy to help with reasonable accommodation requests. Assistance animals are not considered pets. I've passed this to a member of our team, who will follow up with you during office hours to walk you through the process. You can also call (555) 010-0100.", createdAt: ago(2) },
+    ],
+  });
+
+  console.log("✅ Seeded FGW leasing: 2 properties, 8 units, income limits, 2 demo conversations.");
 }
 
 main()

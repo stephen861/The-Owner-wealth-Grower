@@ -81,3 +81,50 @@ The database file (`prisma/dev.db`) is git-ignored — your data stays local.
 - Pages are server components reading directly from Prisma.
 - Change `DATABASE_URL` in `.env` to point the SQLite file elsewhere, or swap the
   Prisma `datasource` provider to Postgres/MySQL to host it.
+
+---
+
+# 🏢 FGW Leasing Agent — 24/7 affordable-housing leasing
+
+An AI leasing agent for **FGW Property Management** that answers affordable-housing
+prospects around the clock by **SMS (Twilio)** and **web chat**, pre-screens income
+eligibility, books tours, manages waitlists, and hands off to staff.
+
+## What it does
+
+| Capability | How |
+|---|---|
+| Answers 24/7 | Claude (`claude-opus-5-5`) with tools over your live property/unit data |
+| Income pre-screen | Deterministic engine (`src/lib/leasing/eligibility.ts`) checks AMI limits by household size, rent-to-income minimum (waived for voucher holders), and occupancy. The AI reports results; it never decides eligibility itself. |
+| Tours | Books tours (Mon–Sat 9:00–17:30, ≥1h notice, no double-booking) |
+| Waitlist / apply | Adds to waitlist or sends the property's application link |
+| Staff handoff | Escalates accommodation requests, complaints, legal, upset prospects, or "talk to a person". Staff reply from the inbox; a staff reply pauses the AI until handed back. |
+| Fair housing guardrails | System prompt forbids protected-class questions and steering; accommodation requests always go to a human |
+| Safety | Emergencies (gas leak, fire, flood…) skip the AI and get an instant 911 / office-line reply + URGENT flag. STOP/START opt-outs are honored. |
+| Bilingual | Replies in the prospect's language (Spanish built into the greeting) |
+| Resilient | No API key or an API error → holding reply + automatic staff flag, so no lead is dropped |
+
+## Pages
+
+- `/leasing` — staff inbox: KPIs (new leads, needs-staff, after-hours messages, tours), pipeline, filters
+- `/leasing/[id]` — conversation thread, profile, tours, staff reply, AI take-over / hand-back
+- `/leasing/properties` — properties, units, rents, AMI set-asides, income-limit tables (paste 1–8 person rows)
+- `/chat` — public prospect web chat (link it from your website or embed in an iframe)
+
+## Go-live checklist
+
+1. **Data**: in `/leasing/properties`, enter real properties, units, rents, and your
+   current HUD / state income limits. *Seed limits are samples — replace them.*
+2. **AI**: set `ANTHROPIC_API_KEY` (put secrets in `.env.local`, which is git-ignored).
+3. **Timezone**: run the server with `TZ` set to the properties' zone (e.g. `TZ=America/New_York`) so tour hours are correct.
+4. **SMS**: in Twilio, set your number's *A message comes in* webhook to
+   `POST https://<your-domain>/api/leasing/sms`. Set `TWILIO_AUTH_TOKEN` and
+   `PUBLIC_BASE_URL` (signatures are verified; unsigned requests are rejected in production).
+   Also set `TWILIO_ACCOUNT_SID` + `TWILIO_FROM_NUMBER` so replies are sent asynchronously
+   (avoids Twilio's 15-second webhook timeout) and staff can reply by SMS.
+   Register for A2P 10DLC before sending at volume.
+5. **Office line**: set `FGW_OFFICE_PHONE` — it's what prospects are told to call on handoffs and emergencies.
+6. **Review**: have your compliance lead review the system prompt in `src/lib/leasing/agent.ts` against your fair-housing policy and local occupancy standards (`eligibility.ts` uses 2-per-bedroom + 1).
+
+Notes: requests use server-side refusal fallbacks (`fallbacks: "default"`) so a declined
+request is retried on a fallback model, and `effort: "low"` for fast, low-cost chat replies.

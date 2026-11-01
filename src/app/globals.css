@@ -399,3 +399,8 @@ textarea {
     padding: 20px;
   }
 }
+
+/* Public pages (e.g. /chat) render without the staff sidebar. */
+.layout:not(:has(.sidebar)) {
+  grid-template-columns: 1fr;
+}

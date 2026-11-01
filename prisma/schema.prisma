@@ -175,3 +175,121 @@ model Fee {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// FGW Property Management — 24/7 affordable-housing leasing agent
+// ───────────────────────────────────────────────────────────────────────────
+
+// An affordable-housing community FGW manages.
+model Property {
+  id            String   @id @default(cuid())
+  name          String
+  address       String?
+  city          String?
+  state         String?
+  program       String   @default("LIHTC") // LIHTC | SECTION_8 | HOME | PBV | MIXED | MARKET
+  acceptsVouchers Boolean @default(true) // Housing Choice Vouchers accepted
+  officePhone   String?
+  officeHours   String? // e.g. "Mon–Fri 9am–5pm"
+  amenities     String? // free text the agent can quote
+  policies      String? // pets, parking, application fee, screening criteria
+  applicationUrl String?
+  applicationFee Float?
+  minIncomeMultiple Float @default(2) // income ≥ rent × 12 × this (waived with voucher)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  units        Unit[]
+  incomeLimits IncomeLimit[]
+  tours        Tour[]
+  prospects    Prospect[]
+}
+
+// A rentable unit (or floor-plan slot) at a property.
+model Unit {
+  id            String   @id @default(cuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unitNumber    String
+  bedrooms      Int
+  bathrooms     Float    @default(1)
+  sqft          Int?
+  rent          Float
+  amiPercent    Int      @default(60) // income-restricted set-aside: 30 | 50 | 60 | 80; 0 = market
+  accessible    Boolean  @default(false) // ADA / mobility unit
+  status        String   @default("AVAILABLE") // AVAILABLE | ON_HOLD | LEASED | DOWN
+  availableDate DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Maximum annual household income by household size and AMI %.
+model IncomeLimit {
+  id            String   @id @default(cuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amiPercent    Int
+  householdSize Int
+  maxIncome     Float
+  year          Int?
+
+  @@unique([propertyId, amiPercent, householdSize])
+}
+
+// A lead / applicant talking to the leasing agent.
+model Prospect {
+  id              String   @id @default(cuid())
+  name            String?
+  phone           String?  @unique
+  email           String?
+  webSessionId    String?  @unique // anonymous web-chat session
+  preferredLanguage String @default("en")
+  householdSize   Int?
+  annualIncome    Float?
+  hasVoucher      Boolean?
+  bedroomsWanted  Int?
+  moveInDate      DateTime?
+  propertyId      String?
+  property        Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  status          String   @default("NEW") // NEW | PRESCREENED | TOUR_SCHEDULED | APPLYING | WAITLIST | LEASED | NOT_ELIGIBLE | CLOSED
+  aiEnabled       Boolean  @default(true) // false = staff took over
+  needsHuman      Boolean  @default(false)
+  escalationReason String?
+  smsOptOut       Boolean  @default(false)
+  source          String?  // SMS | WEB | EMAIL | WALK_IN
+  notes           String?
+  lastMessageAt   DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  messages Message[]
+  tours    Tour[]
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  prospectId String
+  prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  direction  String   // IN | OUT
+  author     String   // PROSPECT | AGENT | STAFF | SYSTEM
+  channel    String   // SMS | WEB | EMAIL
+  body       String
+  createdAt  DateTime @default(now())
+
+  @@index([prospectId, createdAt])
+}
+
+model Tour {
+  id          String   @id @default(cuid())
+  prospectId  String
+  prospect    Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  scheduledAt DateTime
+  type        String   @default("IN_PERSON") // IN_PERSON | VIRTUAL | SELF_GUIDED
+  status      String   @default("SCHEDULED") // SCHEDULED | COMPLETED | NO_SHOW | CANCELLED
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
