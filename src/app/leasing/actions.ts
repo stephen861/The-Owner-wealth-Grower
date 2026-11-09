@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { sendSms, twilioRestConfigured } from "@/lib/leasing/twilio";
 import { PROSPECT_STATUSES } from "@/lib/leasing/tools";
+import { isValidTimeZone } from "@/lib/leasing/time";
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? "").toString().trim();
@@ -31,12 +32,13 @@ export async function staffReply(formData: FormData) {
   const p = await prisma.prospect.findUnique({ where: { id } });
   if (!p) return;
   const channel = p.phone ? "SMS" : "WEB";
+  let delivered = true;
   if (channel === "SMS") {
     if (p.smsOptOut) throw new Error("Prospect opted out of SMS (replied STOP).");
     if (!twilioRestConfigured()) throw new Error("Twilio REST not configured — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER.");
-    await sendSms(p.phone!, body);
+    delivered = await sendSms(p.phone!, body); // false = held by the go-live switch
   }
-  await prisma.message.create({ data: { prospectId: id, direction: "OUT", author: "STAFF", channel, body } });
+  await prisma.message.create({ data: { prospectId: id, direction: "OUT", author: "STAFF", channel, body, delivered } });
   // A staff reply means a human owns the thread until they hand it back.
   await prisma.prospect.update({ where: { id }, data: { aiEnabled: false, needsHuman: false, lastMessageAt: new Date() } });
   refresh(id);
@@ -110,6 +112,7 @@ export async function createProperty(formData: FormData) {
       address: str(formData.get("address")),
       city: str(formData.get("city")),
       state: str(formData.get("state")),
+      timezone: isValidTimeZone(str(formData.get("timezone")) ?? "") ? str(formData.get("timezone"))! : "America/New_York",
       program: str(formData.get("program")) ?? "LIHTC",
       acceptsVouchers: str(formData.get("acceptsVouchers")) !== "false",
       officePhone: str(formData.get("officePhone")),

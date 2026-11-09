@@ -54,7 +54,7 @@ function client(): Anthropic | null {
 
 export type Channel = "SMS" | "WEB";
 
-export type AgentResult = { reply: string | null; escalated: boolean };
+export type AgentResult = { reply: string | null; escalated: boolean; messageId?: string };
 
 /**
  * Handle one inbound prospect message end-to-end: persist it, apply guardrails,
@@ -114,8 +114,8 @@ async function save(prospectId: string, channel: Channel, reply: string, escalat
   if (reason) {
     await prisma.prospect.update({ where: { id: prospectId }, data: { needsHuman: true, escalationReason: reason } });
   }
-  await prisma.message.create({ data: { prospectId, direction: "OUT", author: "AGENT", channel, body: reply } });
-  return { reply, escalated };
+  const msg = await prisma.message.create({ data: { prospectId, direction: "OUT", author: "AGENT", channel, body: reply } });
+  return { reply, escalated, messageId: msg.id };
 }
 
 function fallbackReply(name: string | null): string {
@@ -154,7 +154,11 @@ async function contextNote(prospectId: string, channel: Channel): Promise<string
     preferred_language: p.preferredLanguage,
     staff_handoff_pending: p.needsHuman,
   };
-  return `Context for this reply — channel: ${channel}. Current local time: ${new Date().toString()}. Office phone: ${office()}. Known prospect details (do not re-ask what is already known): ${JSON.stringify(known)}`;
+  const zones = await prisma.property.findMany({ where: { active: true }, select: { timezone: true }, distinct: ["timezone"] });
+  const now = (zones.length ? zones.map((z) => z.timezone) : ["UTC"])
+    .map((tz) => `${new Date().toLocaleString("en-US", { timeZone: tz, dateStyle: "full", timeStyle: "short" })} (${tz})`)
+    .join("; ");
+  return `Context for this reply — channel: ${channel}. Current time: ${now}. Office phone: ${office()}. Known prospect details (do not re-ask what is already known): ${JSON.stringify(known)}`;
 }
 
 async function runAgent(ai: Anthropic, prospectId: string, channel: Channel): Promise<string> {

@@ -187,6 +187,7 @@ model Property {
   address       String?
   city          String?
   state         String?
+  timezone      String   @default("America/New_York") // IANA zone; tour hours are checked in this zone
   program       String   @default("LIHTC") // LIHTC | SECTION_8 | HOME | PBV | MIXED | MARKET
   acceptsVouchers Boolean @default(true) // Housing Choice Vouchers accepted
   officePhone   String?
@@ -222,6 +223,8 @@ model Unit {
   availableDate DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@unique([propertyId, unitNumber])
 }
 
 // Maximum annual household income by household size and AMI %.
@@ -272,6 +275,7 @@ model Message {
   prospectId String
   prospect   Prospect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
   direction  String   // IN | OUT
+  delivered  Boolean  @default(true) // false = held back by the go-live switch (dry run)
   author     String   // PROSPECT | AGENT | STAFF | SYSTEM
   channel    String   // SMS | WEB | EMAIL
   body       String

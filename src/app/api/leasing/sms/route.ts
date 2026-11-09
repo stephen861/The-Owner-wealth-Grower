@@ -3,7 +3,8 @@
 import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleInbound } from "@/lib/leasing/agent";
-import { sendSms, twilioRestConfigured, twiml, verifyTwilioSignature } from "@/lib/leasing/twilio";
+import { canText, sendSms, twilioRestConfigured, twiml, verifyTwilioSignature } from "@/lib/leasing/twilio";
+import type { AgentResult } from "@/lib/leasing/agent";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +37,26 @@ export async function POST(req: Request) {
   if (twilioRestConfigured()) {
     // Ack immediately; run the agent after the response so Twilio never times out.
     after(async () => {
-      const { reply } = await handleInbound(prospect.id, "SMS", body);
-      if (reply) await sendSms(from, reply).catch((e) => console.error("[sms send]", e));
+      const result = await handleInbound(prospect.id, "SMS", body);
+      if (!result.reply) return;
+      const sent = await sendSms(from, result.reply).catch((e) => {
+        console.error("[sms send]", e);
+        return false;
+      });
+      if (!sent) await markUndelivered(result);
     });
     return twiml(null);
   }
 
-  const { reply } = await handleInbound(prospect.id, "SMS", body);
-  return twiml(reply);
+  const result = await handleInbound(prospect.id, "SMS", body);
+  if (result.reply && !canText(from)) {
+    console.info(`[sms DRY RUN] not live — held TwiML reply to ${from}`);
+    await markUndelivered(result);
+    return twiml(null);
+  }
+  return twiml(result.reply);
+}
+
+async function markUndelivered(result: AgentResult) {
+  if (result.messageId) await prisma.message.update({ where: { id: result.messageId }, data: { delivered: false } });
 }

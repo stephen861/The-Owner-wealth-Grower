@@ -113,10 +113,12 @@ eligibility, books tours, manages waitlists, and hands off to staff.
 
 ## Go-live checklist
 
+> **Full step-by-step: [`docs/leasing/GO-LIVE.md`](docs/leasing/GO-LIVE.md).** Tools: `npm run leasing:import`, `npm run leasing:clear-demo`, `npm run leasing:check` (pass/fail readiness), `npm test`. The agent stays in **dry-run mode** (no SMS to real numbers) until `LEASING_LIVE=true`.
+
 1. **Data**: in `/leasing/properties`, enter real properties, units, rents, and your
    current HUD / state income limits. *Seed limits are samples — replace them.*
 2. **AI**: set `ANTHROPIC_API_KEY` (put secrets in `.env.local`, which is git-ignored).
-3. **Timezone**: run the server with `TZ` set to the properties' zone (e.g. `TZ=America/New_York`) so tour hours are correct.
+3. **Timezone**: set each property's `timezone`. Tour hours are checked in property-local time.
 4. **SMS**: in Twilio, set your number's *A message comes in* webhook to
    `POST https://<your-domain>/api/leasing/sms`. Set `TWILIO_AUTH_TOKEN` and
    `PUBLIC_BASE_URL` (signatures are verified; unsigned requests are rejected in production).

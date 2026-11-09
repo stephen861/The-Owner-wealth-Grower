@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { parseWallTime, zonedToUtc } from "../src/lib/leasing/time";
 
 const prisma = new PrismaClient();
 
@@ -467,8 +468,10 @@ async function seedLeasing(inDays: (n: number) => Date) {
       { prospectId: maria.id, direction: "OUT", author: "AGENT", channel: "SMS", body: "¡Gracias! Según nuestra pre-evaluación, su hogar pre-califica para la unidad B-210 ($1,040) (la B-305 no aplica porque su ingreso supera el límite de 30% AMI). Esto está sujeto a verificación. ¿Le gustaría agendar una visita?", createdAt: ago(25.9) },
     ],
   });
-  const tourAt = inDays(2);
-  tourAt.setHours(11, 0, 0, 0);
+  // 11:00 AM at the property, whatever timezone this script runs in.
+  const d = inDays(2);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+  const tourAt = zonedToUtc(parseWallTime(`${d.toISOString().slice(0, 10)}T11:00`)!, oaks.timezone);
   await prisma.tour.create({ data: { prospectId: maria.id, propertyId: oaks.id, scheduledAt: tourAt, type: "IN_PERSON" } });
 
   const web = await prisma.prospect.create({

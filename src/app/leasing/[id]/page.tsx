@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, labelFor, PROSPECT_STATUS, toDateInput } from "@/lib/format";
+import { formatInZone } from "@/lib/leasing/time";
 import { deleteProspect, resolveEscalation, setTourStatus, staffReply, toggleAi, updateProspect } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                   <div className="subnote" style={{ textAlign: mine ? "right" : "left" }}>
                     {m.author === "AGENT" ? "🤖 Agent" : m.author === "STAFF" ? "👤 Staff" : who} · {m.channel} ·{" "}
                     {m.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" })}
+                    {!m.delivered ? <span className="badge amber" style={{ marginLeft: 6 }}>Not sent — dry run</span> : null}
                   </div>
                 </div>
               );
@@ -124,7 +126,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                   {p.tours.map((t) => (
                     <tr key={t.id}>
                       <td>
-                        {t.scheduledAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                        {formatInZone(t.scheduledAt, t.property.timezone, "medium")}
                         <div className="subnote">{t.property.name} · {t.type.replace("_", " ").toLowerCase()} · {t.status.toLowerCase()}</div>
                       </td>
                       <td className="right">

@@ -39,7 +39,7 @@ export default async function PropertiesPage() {
               </form>
             </div>
             <div className="subnote">
-              {[p.address, p.city, p.state].filter(Boolean).join(", ")} · {p.officePhone ?? "no phone"} · {p.officeHours ?? "no hours"} · App fee{" "}
+              {[p.address, p.city, p.state].filter(Boolean).join(", ")} · {p.timezone} · {p.officePhone ?? "no phone"} · {p.officeHours ?? "no hours"} · App fee{" "}
               {formatCurrency(p.applicationFee)} · Min income {p.minIncomeMultiple}× rent (waived w/ voucher)
             </div>
 
@@ -143,6 +143,11 @@ export default async function PropertiesPage() {
           <div className="field"><label>Address</label><input name="address" /></div>
           <div className="field"><label>City</label><input name="city" /></div>
           <div className="field"><label>State</label><input name="state" /></div>
+          <div className="field"><label>Timezone</label>
+            <select name="timezone" defaultValue="America/New_York">
+              {["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"].map((z) => <option key={z} value={z}>{z}</option>)}
+            </select>
+          </div>
           <div className="field"><label>Office phone</label><input name="officePhone" /></div>
           <div className="field"><label>Office hours</label><input name="officeHours" placeholder="Mon–Fri 9am–5pm" /></div>
           <div className="field"><label>Application URL</label><input name="applicationUrl" /></div>

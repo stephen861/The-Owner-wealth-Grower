@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, labelFor, PROSPECT_STATUS, timeAgo } from "@/lib/format";
+import { leasingLive, testNumbers } from "@/lib/leasing/twilio";
+import { formatInZone } from "@/lib/leasing/time";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +82,16 @@ export default async function LeasingInbox({
         </div>
       </div>
 
+      {leasingLive() ? (
+        <div className="flash">🟢 <strong>LIVE</strong> — the agent is texting real prospects.</div>
+      ) : (
+        <div className="flash">
+          🧪 <strong>Dry-run mode</strong> — no SMS reaches anyone except test numbers
+          {testNumbers().length ? ` (${testNumbers().join(", ")})` : " (none set)"}. Replies are still generated and saved
+          for review. Set <code>LEASING_LIVE=true</code> only after the go-live checklist passes (<code>npm run leasing:check</code>).
+        </div>
+      )}
+
       {!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN ? (
         <div className="flash">
           ⚠️ <strong>AI is offline</strong> — set <code>ANTHROPIC_API_KEY</code> in <code>.env</code>. Until then the agent
@@ -122,7 +134,7 @@ export default async function LeasingInbox({
             <tbody>
               {upcomingTours.map((t) => (
                 <tr key={t.id}>
-                  <td>{t.scheduledAt.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</td>
+                  <td>{formatInZone(t.scheduledAt, t.property.timezone, "medium")}</td>
                   <td><Link href={`/leasing/${t.prospectId}`}>{t.prospect.name ?? t.prospect.phone ?? "Web visitor"}</Link></td>
                   <td>{t.property.name}</td>
                   <td>{t.type.replace("_", " ").toLowerCase()}</td>

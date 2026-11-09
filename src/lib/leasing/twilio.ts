@@ -17,11 +17,38 @@ export function verifyTwilioSignature(
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// ── Go-live switch ────────────────────────────────────────────────
+// Until LEASING_LIVE="true", no SMS reaches anyone except the numbers in
+// LEASING_TEST_NUMBERS (comma-separated, E.164 e.g. +14045550123). Held-back
+// replies are still generated and saved (delivered=false) so staff can review
+// exactly what the agent would have sent.
+export function leasingLive(): boolean {
+  return process.env.LEASING_LIVE === "true";
+}
+
+export function testNumbers(): string[] {
+  return (process.env.LEASING_TEST_NUMBERS ?? "")
+    .split(",")
+    .map((n) => n.replace(/[^\d+]/g, ""))
+    .filter(Boolean);
+}
+
+export function canText(to: string): boolean {
+  if (leasingLive()) return true;
+  const clean = to.replace(/[^\d+]/g, "");
+  return testNumbers().includes(clean);
+}
+
 export function twilioRestConfigured(): boolean {
   return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER);
 }
 
-export async function sendSms(to: string, body: string): Promise<void> {
+/** Sends an SMS. Returns false (and sends nothing) when the go-live switch holds it back. */
+export async function sendSms(to: string, body: string): Promise<boolean> {
+  if (!canText(to)) {
+    console.info(`[sms DRY RUN] not live — held message to ${to}: ${body.slice(0, 80)}`);
+    return false;
+  }
   const sid = process.env.TWILIO_ACCOUNT_SID!;
   const token = process.env.TWILIO_AUTH_TOKEN!;
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -33,6 +60,7 @@ export async function sendSms(to: string, body: string): Promise<void> {
     body: new URLSearchParams({ To: to, From: process.env.TWILIO_FROM_NUMBER!, Body: body }),
   });
   if (!res.ok) throw new Error(`Twilio send failed ${res.status}: ${await res.text()}`);
+  return true;
 }
 
 export function twiml(message: string | null): Response {

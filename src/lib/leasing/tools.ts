@@ -3,6 +3,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { screenUnits } from "./eligibility";
+import { formatInZone, parseWallTime, zonedToUtc } from "./time";
 
 export const PROSPECT_STATUSES = [
   "NEW",
@@ -75,7 +76,7 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
   {
     name: "schedule_tour",
     description:
-      "Book a tour. Confirm date, time and tour type with the prospect BEFORE calling. Times are local property time, ISO format YYYY-MM-DDTHH:MM. Tours run 9:00–17:30 Mon–Sat.",
+      "Book a tour. Confirm date, time and tour type with the prospect BEFORE calling. Give the time in the PROPERTY's local time as YYYY-MM-DDTHH:MM. Tours run 9:00–17:30 Mon–Sat, property local time.",
     input_schema: {
       type: "object",
       properties: {
@@ -141,6 +142,8 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
             accepts_vouchers: p.acceptsVouchers,
             office_phone: p.officePhone,
             office_hours: p.officeHours,
+            timezone: p.timezone,
+            local_time_now: new Date().toLocaleString("en-US", { timeZone: p.timezone, dateStyle: "full", timeStyle: "short" }),
             amenities: p.amenities,
             policies: p.policies,
             application_url: p.applicationUrl,
@@ -252,14 +255,15 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       const propertyId = s(input.property_id);
       const when = s(input.datetime);
       if (!propertyId || !when) return "Error: property_id and datetime required.";
-      const at = new Date(when);
-      if (Number.isNaN(at.getTime())) return "Error: invalid datetime. Use YYYY-MM-DDTHH:MM.";
-      if (at.getTime() < Date.now() + 60 * 60 * 1000) return "Error: tours must be booked at least 1 hour ahead.";
-      const mins = at.getHours() * 60 + at.getMinutes();
-      if (at.getDay() === 0 || mins < 9 * 60 || mins > 17 * 60 + 30)
-        return "Error: outside tour hours (Mon–Sat 9:00–17:30). Offer another time.";
       const prop = await prisma.property.findUnique({ where: { id: propertyId } });
       if (!prop) return "Error: unknown property_id.";
+      const wall = parseWallTime(when);
+      if (!wall) return "Error: invalid datetime. Use YYYY-MM-DDTHH:MM in the property's local time.";
+      const mins = wall.hour * 60 + wall.minute;
+      if (wall.weekday === 0 || mins < 9 * 60 || mins > 17 * 60 + 30)
+        return "Error: outside tour hours (Mon–Sat 9:00–17:30 property local time). Offer another time.";
+      const at = zonedToUtc(wall, prop.timezone);
+      if (at.getTime() < Date.now() + 60 * 60 * 1000) return "Error: tours must be booked at least 1 hour ahead.";
       const clash = await prisma.tour.findFirst({
         where: {
           propertyId,
@@ -272,7 +276,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         data: { prospectId, propertyId, scheduledAt: at, type: s(input.tour_type) ?? "IN_PERSON" },
       });
       await prisma.prospect.update({ where: { id: prospectId }, data: { status: "TOUR_SCHEDULED", propertyId } });
-      return JSON.stringify({ booked: true, tour_id: tour.id, property: prop.name, address: prop.address, when: at.toString() });
+      return JSON.stringify({ booked: true, tour_id: tour.id, property: prop.name, address: prop.address, when: formatInZone(at, prop.timezone) });
     }
 
     case "join_waitlist": {

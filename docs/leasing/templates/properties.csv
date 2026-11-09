@@ -1,0 +1,2 @@
+name,address,city,state,timezone,program,accepts_vouchers,office_phone,office_hours,application_url,application_fee,min_income_multiple,amenities,policies
+"Example Gardens","100 Main St","Atlanta","GA","America/New_York","LIHTC","yes","(404) 555-0100","Mon–Fri 9am–5pm","https://your-site.com/apply/example-gardens",35,2,"Laundry, playground, bus line","Cats/dogs under 40 lb ($25/mo). Assistance animals are not pets. Water/trash included."
