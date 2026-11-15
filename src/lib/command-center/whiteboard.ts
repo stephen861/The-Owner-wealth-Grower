@@ -79,9 +79,25 @@ export const CARD_ALLOWLIST = [
  * depth behind the shape allowlist: if a future card builder forgets to
  * sanitize, the audit fails loudly instead of publishing.
  */
+const MONEY_WORD = "(?:cents|amount|price|cost|revenue|fee|fees|balance|owed|paid)";
+
 const LEAK_PATTERNS: { label: string; pattern: RegExp }[] = [
   { label: "currency symbol", pattern: /[$£€]/ },
-  { label: "cents/amount field name", pattern: /cents|amount|price|cost|revenue|fee/i },
+  // A money-named JSON KEY, e.g. "amountCents": — not a money word appearing
+  // inside an identifier code such as FGW-DEMO-COST-RECONCILER, which is an
+  // automation's name and carries no financial value.
+  {
+    label: "money-named field",
+    pattern: new RegExp(`"[a-zA-Z]*${MONEY_WORD}[a-zA-Z]*"\\s*:`, "i"),
+  },
+  // A metric whose key names money, e.g. {"key":"feesOwed"}.
+  {
+    label: "money-named metric",
+    pattern: new RegExp(`"key"\\s*:\\s*"[a-zA-Z]*${MONEY_WORD}[a-zA-Z]*"`, "i"),
+  },
+  // A money-shaped value: metrics are integer counts, so two decimal places
+  // can only be an amount that slipped through.
+  { label: "money-shaped value", pattern: /\d+\.\d{2}/ },
   { label: "email address", pattern: /@/ },
   { label: "phone number", pattern: /\b\d{3}-\d{4}\b/ },
   { label: "fictional-person marker", pattern: /FICTIONAL/i },
@@ -96,7 +112,13 @@ export type ProjectionAuditFinding = { label: string; sample: string };
 export function auditProjection(projection: WhiteboardProjection): ProjectionAuditFinding[] {
   // Audit only the card payload. The envelope deliberately carries human-
   // readable notices and the dataset name, which are not record data.
-  const serialized = JSON.stringify(projection.cards);
+  // ISO timestamps contain a fractional second ("12:00:00.000Z") that would
+  // otherwise trip the money-shaped-value pattern, so neutralise real
+  // timestamps first. A non-timestamp decimal still gets caught.
+  const serialized = JSON.stringify(projection.cards).replace(
+    /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g,
+    "<timestamp>",
+  );
   const findings: ProjectionAuditFinding[] = [];
   for (const { label, pattern } of LEAK_PATTERNS) {
     const match = serialized.match(pattern);

@@ -15,7 +15,8 @@
     "setup": "prisma generate && prisma db push && npm run db:seed",
     "demo:seed": "tsx scripts/seed-command-center.ts",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:unit": "node --import tsx --test tests/command-center-domain.test.ts"
+    "test:unit": "node --import tsx --test tests/command-center-domain.test.ts",
+    "demo:whiteboard": "tsx scripts/demo-whiteboard-flow.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

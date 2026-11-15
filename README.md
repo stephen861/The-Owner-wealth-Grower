@@ -65,6 +65,24 @@ attention), **Revenue engine** (pipeline, weighted commission forecast, commissi
 follow-ups due, deals closing soon), and **Portfolio** (points, fees, exchange deposits,
 membership renewals and expiring rewards).
 
+## FGW / AFLH Command Center (synthetic prototype)
+
+An isolated prototype of an owner command center lives at `/command-center`.
+**It is synthetic-data only** — no live integration, no resident or employee
+data, no payments, no external messages, and it does not replace Rent Manager or
+InSync. Every table is prefixed `Demo*`, so it cannot touch the data above.
+
+```bash
+npm run demo:seed        # load the one synthetic demo dataset
+npm run dev              # then open http://localhost:3000/command-center
+npm test                 # 128 tests across 25 suites
+npm run demo:whiteboard  # end-to-end whiteboard projection demonstration
+```
+
+See **[docs/command-center-prototype.md](docs/command-center-prototype.md)** for
+the reuse decisions, the four source defects it designs out, the whiteboard
+export contract, integration status, and the gaps.
+
 ## Getting started
 
 ```bash

@@ -205,6 +205,55 @@ describe("sanitized allowlist (the target boards are shared by link)", () => {
     assert.deepEqual(auditProjection(build()), []);
   });
 
+  it("does not flag a money WORD inside an automation's own name", () => {
+    // Regression: an agent called "DEMO Cost Reconciler" becomes the code
+    // FGW-DEMO-COST-RECONCILER. That is a system label, not a financial
+    // value, and must not trip the audit.
+    const snap = snapshot();
+    snap.agents = [
+      {
+        agentName: "DEMO Cost Reconciler",
+        division: "FGW",
+        lastCheckInAt: new Date("2026-11-15T11:00:00Z"),
+        lastEvidenceNote: "matched entries to jobs",
+        blocked: false,
+      },
+    ];
+    const projection = build(1, GENERATED_AT, snap);
+    assert.ok(
+      projection.cards.some((c) => c.code.includes("COST")),
+      "the agent code should be present",
+    );
+    assert.deepEqual(auditProjection(projection), []);
+  });
+
+  it("still flags a genuine money leak", () => {
+    const leaky = build();
+    // Simulate a future card builder that forgets to sanitize.
+    const tampered = {
+      ...leaky,
+      cards: [
+        ...leaky.cards,
+        { ...leaky.cards[0], metrics: [{ key: "feesOwed", value: 650 }] },
+      ],
+    };
+    const findings = auditProjection(tampered);
+    assert.ok(
+      findings.some((f) => /money-named metric/.test(f.label)),
+      `expected a money-named metric finding, got ${JSON.stringify(findings)}`,
+    );
+  });
+
+  it("flags a money-shaped decimal value", () => {
+    const leaky = build();
+    const tampered = {
+      ...leaky,
+      cards: [...leaky.cards, { ...leaky.cards[0], code: "X", status: "OK", version: 1,
+        updatedAt: "650.75" }],
+    };
+    assert.ok(auditProjection(tampered).some((f) => /money-shaped value/.test(f.label)));
+  });
+
   it("projects no amounts, names, addresses or contact details", () => {
     const serialized = JSON.stringify(build().cards);
     for (const banned of ["$", "@", "cents", "FICTIONAL", "Way", "Occupant", "DEMO —"]) {
