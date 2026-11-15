@@ -130,7 +130,7 @@ export async function createProperty(formData: FormData) {
       policies: str(formData.get("policies")),
       applicationUrl: str(formData.get("applicationUrl")),
       applicationFee: num(formData.get("applicationFee")),
-      minIncomeMultiple: num(formData.get("minIncomeMultiple")) ?? 2,
+      minIncomeMultiple: 0, // not used: the agent never screens on income
     },
   });
   refreshProps();
@@ -160,7 +160,7 @@ export async function createUnit(formData: FormData) {
       rent,
       bathrooms: num(formData.get("bathrooms")) ?? 1,
       sqft: num(formData.get("sqft")),
-      amiPercent: num(formData.get("amiPercent")) ?? 60,
+      amiPercent: num(formData.get("amiPercent")) ?? 0,
       accessible: str(formData.get("accessible")) === "true",
       availableDate: avail ? new Date(avail) : null,
     },

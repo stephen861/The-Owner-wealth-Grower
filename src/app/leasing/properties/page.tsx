@@ -40,7 +40,7 @@ export default async function PropertiesPage() {
             </div>
             <div className="subnote">
               {[p.address, p.city, p.state].filter(Boolean).join(", ")} · {p.timezone} · {p.officePhone ?? "no phone"} · {p.officeHours ?? "no hours"} · App fee{" "}
-              {formatCurrency(p.applicationFee)} · Min income {p.minIncomeMultiple}× rent (waived w/ voucher)
+              {formatCurrency(p.applicationFee)}
             </div>
 
             <h3 style={{ marginTop: 16 }}>Units</h3>
@@ -85,8 +85,8 @@ export default async function PropertiesPage() {
               <div className="field"><label>Baths</label><input name="bathrooms" type="number" step="0.5" defaultValue={1} /></div>
               <div className="field"><label>Rent</label><input name="rent" type="number" step="1" required /></div>
               <div className="field"><label>AMI %</label>
-                <select name="amiPercent" defaultValue="60">
-                  {[30, 40, 50, 60, 70, 80, 0].map((a) => <option key={a} value={a}>{a ? `${a}%` : "Market"}</option>)}
+                <select name="amiPercent" defaultValue="0">
+                  {[0, 30, 40, 50, 60, 70, 80].map((a) => <option key={a} value={a}>{a ? `${a}%` : "Market"}</option>)}
                 </select>
               </div>
               <div className="field"><label>Accessible</label>
@@ -133,7 +133,7 @@ export default async function PropertiesPage() {
         <form action={createProperty} className="grid">
           <div className="field"><label>Name *</label><input name="name" required /></div>
           <div className="field"><label>Program</label>
-            <select name="program" defaultValue="LIHTC">
+            <select name="program" defaultValue="MARKET">
               {HOUSING_PROGRAMS.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
             </select>
           </div>
@@ -152,9 +152,8 @@ export default async function PropertiesPage() {
           <div className="field"><label>Office hours</label><input name="officeHours" placeholder="Mon–Fri 9am–5pm" /></div>
           <div className="field"><label>Application URL</label><input name="applicationUrl" /></div>
           <div className="field"><label>Application fee</label><input name="applicationFee" type="number" step="0.01" /></div>
-          <div className="field"><label>Min income × rent</label><input name="minIncomeMultiple" type="number" step="0.1" defaultValue={2} /></div>
           <div className="field full"><label>Amenities</label><input name="amenities" /></div>
-          <div className="field full"><label>Policies (pets, parking, screening criteria, utilities)</label><textarea name="policies" rows={3} /></div>
+          <div className="field full"><label>Policies (pets, parking, utilities, deposit, written screening criteria; the agent repeats these word for word and never applies them)</label><textarea name="policies" rows={3} /></div>
           <div className="form-actions"><button className="btn" type="submit">Add property</button></div>
         </form>
       </div>

@@ -59,6 +59,8 @@ household shares its details, the thread lands in the inbox's "Needs staff" queu
 with a note of what's still missing, and Stephen or Robin decide. Only staff can
 set a "Not moving forward" status.
 
+**Hosting on Render:** see `RENDER-SETUP.md` (Blueprint in `render.yaml`).
+
 ## Steps once inputs arrive
 
 ```bash
