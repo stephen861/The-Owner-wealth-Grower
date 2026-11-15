@@ -801,3 +801,49 @@ model DemoAuditEvent {
 
   @@index([at])
 }
+
+// --- Whiteboard projection (synthetic, outbound-only) ----------------------
+// Tracks the state of a one-way projection from the demo dataset to an
+// external board. Nothing here contacts a network: a projection is generated
+// locally and applied by a person. `enabled` is false and stays false.
+
+model DemoWhiteboardTarget {
+  id        String @id @default(cuid())
+  targetKey String @unique // e.g. "ai-team-board"
+  label     String
+  targetUrl String // recorded for documentation; never fetched by this app
+  /** Hard off. No code path in the prototype turns this on. */
+  enabled   Boolean @default(false)
+
+  // Last applied projection, for duplicate and stale rejection.
+  lastAppliedVersion     Int?
+  lastAppliedContentHash String?
+  lastAppliedAt          DateTime?
+
+  lastSuccessAt       DateTime?
+  lastErrorAt         DateTime?
+  lastError           String?
+  consecutiveFailures Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events DemoWhiteboardEvent[]
+}
+
+// Append-only log of projection attempts and their outcome.
+model DemoWhiteboardEvent {
+  id       String               @id @default(cuid())
+  targetId String
+  target   DemoWhiteboardTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  at           DateTime @default(now())
+  projectionId String
+  version      Int
+  contentHash  String
+  generatedAt  DateTime
+  outcome      String // APPLIED | REJECTED_DUPLICATE | REJECTED_STALE | REJECTED_VERSION_CONFLICT | REJECTED_UNKNOWN_TARGET | FAILED
+  detail       String?
+
+  @@index([targetId, at])
+}
