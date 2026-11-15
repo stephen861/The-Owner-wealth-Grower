@@ -12,7 +12,10 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:reset": "prisma db push --force-reset && npm run db:seed",
-    "setup": "prisma generate && prisma db push && npm run db:seed"
+    "setup": "prisma generate && prisma db push && npm run db:seed",
+    "demo:seed": "tsx scripts/seed-command-center.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:unit": "node --import tsx --test tests/command-center-domain.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

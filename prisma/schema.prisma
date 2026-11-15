@@ -434,3 +434,370 @@ model Expense {
 
   @@index([propertyId, paidAt])
 }
+
+// ===========================================================================
+// FGW / AFLH COMMAND CENTER — SYNTHETIC PROTOTYPE ONLY
+//
+// Every model below is prefixed `Demo` and is written to ONLY by the demo
+// seeder and the /command-center screens. Nothing here reads, writes or
+// migrates production data, and no model above this line is modified.
+//
+// Money is stored in integer cents, not Float, so totals are exact. Divisions
+// are a typed field ("FGW" | "AFLH") rather than separate tables, so one
+// filter serves every screen.
+//
+// Deliberately absent: any clinical, medical, eligibility, date-of-birth,
+// government-ID or payment-instrument field. Placements carry a fictional
+// label and an occupancy status only.
+// ===========================================================================
+
+// A property (FGW) or licensed facility (AFLH).
+model DemoProperty {
+  id       String @id @default(cuid())
+  sourceId String // the id this row would carry in the source system
+  division String @default("FGW") // FGW | AFLH
+
+  name        String
+  addressLine String? // fictional
+  city        String?
+  state       String?
+
+  // Typed license status, plus the raw source string it was mapped from.
+  // Revenue eligibility is its OWN explicit field — never inferred from an
+  // exact string match on the raw value (see domain.ts).
+  licenseStatus    String  @default("UNKNOWN") // LICENSED | PROVISIONAL | PENDING_LICENSE | UNLICENSED | NOT_APPLICABLE | UNKNOWN
+  licenseStatusRaw String? // what the source system had, verbatim
+  revenueEligible  Boolean @default(false)
+
+  // Configurable per property — NOT a hard-coded portfolio-wide constant.
+  expectedFeesCents Int @default(0)
+
+  bedCapacity Int?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checklistItems DemoChecklistItem[]
+  placements     DemoPlacement[]
+  referrals      DemoReferral[]
+  tasks          DemoTask[]
+  jobs           DemoJob[]
+  workOrders     DemoWorkOrder[]
+  moneyEntries   DemoMoneyEntry[]
+  supplyItems    DemoSupplyItem[]
+
+  @@unique([division, sourceId])
+}
+
+// A readiness/licensing checklist line against a property.
+model DemoChecklistItem {
+  id         String       @id @default(cuid())
+  propertyId String
+  property   DemoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  sourceId     String
+  label        String
+  category     String  @default("GENERAL") // SAFETY | DOCUMENTATION | FURNISHING | INSPECTION | GENERAL
+  required     Boolean @default(true)
+  status       String  @default("NOT_STARTED") // NOT_STARTED | IN_PROGRESS | BLOCKED | COMPLETE
+  evidenceNote String? // what the last check-in actually showed
+  blockedReason String?
+  completedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([propertyId, sourceId])
+}
+
+// Occupancy only. No personal, clinical or health detail by design.
+model DemoPlacement {
+  id         String       @id @default(cuid())
+  propertyId String
+  property   DemoProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  sourceId     String
+  occupantCode String // e.g. "DEMO-OCC-01" — a label, not a person
+  displayLabel String // e.g. "Fictional Occupant A"
+  status       String @default("RESERVED") // RESERVED | MOVED_IN | MOVED_OUT
+  movedInAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([propertyId, sourceId])
+}
+
+// Administrative referral intake. Stages are fixed and administrative only:
+// nothing here decides clinical admission or eligibility, and no stage may be
+// advanced past HUMAN_REVIEW without a recorded human decision.
+model DemoReferral {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("AFLH")
+
+  referralCode  String
+  referrerLabel String // fictional organisation or contact label
+  stage         String @default("RECEIVED") // RECEIVED | FOLLOW_UP | DOCUMENTS_PENDING | HUMAN_REVIEW | HUMAN_DECISION_RECORDED | MOVE_IN_CHECKLIST
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  // A decision is recorded, never computed. Both fields are set by a person.
+  decisionRecordedBy String?
+  decisionNote       String?
+  decisionAt         DateTime?
+
+  blocked       Boolean @default(false)
+  blockedReason String?
+
+  receivedAt DateTime @default(now())
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoTask {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  title      String
+  assignee   String? // fictional staff label
+  status     String  @default("OPEN") // OPEN | IN_PROGRESS | BLOCKED | DONE | CANCELLED
+  priority   String  @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  dueAt      DateTime?
+  completedAt DateTime?
+  blockedReason String?
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoVendor {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  name  String
+  trade String  @default("GENERAL")
+  phone String? // fictional
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs         DemoJob[]
+  moneyEntries DemoMoneyEntry[]
+
+  @@unique([division, sourceId])
+}
+
+// A scoped piece of work with a cost. Money attaches to a job through the
+// single canonical `DemoMoneyEntry.jobId` relation — there is no second,
+// parallel link column.
+model DemoJob {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  title  String
+  status String @default("PLANNED") // PLANNED | APPROVED | IN_PROGRESS | COMPLETE | CANCELLED
+
+  quotedCents   Int @default(0)
+  approvedCents Int @default(0)
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  vendorId   String?
+  vendor     DemoVendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  blocked       Boolean @default(false)
+  blockedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  moneyEntries DemoMoneyEntry[]
+
+  @@unique([division, sourceId])
+}
+
+// The money log. ONE canonical relationship per dimension: a row points at a
+// property, a job and a vendor by a single FK each, never by two competing
+// link columns.
+model DemoMoneyEntry {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  kind       String @default("EXPENSE") // FEE_PAYMENT | EXPENSE | SUPPLY_PURCHASE | ADVANCE_REPAYMENT
+  amountCents Int    @default(0)
+  occurredAt DateTime
+  memo       String?
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  jobId      String?
+  job        DemoJob?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  vendorId   String?
+  vendor     DemoVendor?   @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoAdvance {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  label        String
+  amountCents  Int @default(0)
+  repaidCents  Int @default(0)
+  issuedAt     DateTime
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoSupplyItem {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  name          String
+  category      String @default("FURNISHING") // FURNISHING | APPLIANCE | CONSUMABLE | SAFETY | OTHER
+  quantity      Int    @default(1)
+  unitCostCents Int    @default(0)
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+// Work orders carry an explicit source-ID field. The pair (division, sourceId)
+// is unique, so a re-import cannot silently create a second copy; the importer
+// reports duplicates instead (see reconcileBySourceId in domain.ts).
+model DemoWorkOrder {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  title    String
+  category String @default("GENERAL")
+  priority String @default("NORMAL") // LOW | NORMAL | HIGH | EMERGENCY
+  status   String @default("OPEN") // OPEN | ASSIGNED | IN_PROGRESS | COMPLETE | CANCELLED
+
+  propertyId String?
+  property   DemoProperty? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  reportedAt    DateTime @default(now())
+  completedAt   DateTime?
+  estimateCents Int?
+  actualCents   Int?
+  blocked       Boolean @default(false)
+  blockedReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoSopReference {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("AFLH")
+
+  title   String
+  summary String?
+  version String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+model DemoContact {
+  id       String @id @default(cuid())
+  sourceId String
+  division String @default("FGW")
+
+  displayName String // fictional
+  role        String?
+  org         String?
+  phone       String? // fictional
+  email       String? // @example.invalid only
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
+}
+
+// An automation/agent's self-reported state. `lastEvidenceNote` is what it
+// actually showed; `blocked` is authoritative over any claim in a note.
+model DemoAgentCheckIn {
+  id       String @id @default(cuid())
+  division String @default("FGW")
+
+  agentName        String
+  scope            String
+  lastCheckInAt    DateTime?
+  lastEvidenceNote String?
+  blocked          Boolean  @default(false)
+  blockedReason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The approval queue. A request can only be decided by a named person; the
+// gate in domain.ts refuses approval while the subject is blocked.
+model DemoApproval {
+  id       String @id @default(cuid())
+  division String @default("FGW")
+
+  title       String
+  subjectType String // PROPERTY | JOB | WORK_ORDER | REFERRAL | MONEY_ENTRY
+  subjectId   String
+  requestedBy String
+  amountCents Int?
+
+  state String @default("PENDING") // PENDING | APPROVED | REJECTED | WITHDRAWN
+
+  decidedBy    String? // a person's name — never an agent
+  decisionNote String?
+  decidedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Append-only audit history for the prototype.
+model DemoAuditEvent {
+  id       String @id @default(cuid())
+  division String @default("FGW")
+
+  at          DateTime @default(now())
+  actor       String
+  actorKind   String   @default("HUMAN") // HUMAN | AGENT | SYSTEM
+  action      String
+  subjectType String?
+  subjectId   String?
+  detail      String?
+
+  @@index([at])
+}
