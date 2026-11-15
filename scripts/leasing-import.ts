@@ -34,7 +34,7 @@ async function main() {
 
   const props = read(dir, "properties.csv", true);
   const units = read(dir, "units.csv", true);
-  const limits = read(dir, "income_limits.csv", true);
+  const limits = read(dir, "income_limits.csv", false); // optional: only needed for income-restricted (AMI) units
 
   const propNames = new Set<string>();
   props.forEach((r, i) => {
