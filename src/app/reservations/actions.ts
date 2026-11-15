@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -26,6 +28,7 @@ function refresh() {
 }
 
 export async function createReservation(formData: FormData) {
+  await requireStaff();
   const resort = str(formData.get("resort"));
   const checkIn = date(formData.get("checkIn"));
   const checkOut = date(formData.get("checkOut"));
@@ -51,6 +54,7 @@ export async function createReservation(formData: FormData) {
 }
 
 export async function updateReservationStatus(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
   if (!id || !status) return;
@@ -59,6 +63,7 @@ export async function updateReservationStatus(formData: FormData) {
 }
 
 export async function deleteReservation(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.reservation.delete({ where: { id } });

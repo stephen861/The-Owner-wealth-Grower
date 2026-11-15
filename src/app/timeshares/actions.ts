@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -20,6 +22,7 @@ function date(v: FormDataEntryValue | null): Date | null {
 }
 
 export async function createTimeshare(formData: FormData) {
+  await requireStaff();
   const name = str(formData.get("name"));
   if (!name) return;
   await prisma.timeshare.create({
@@ -47,6 +50,7 @@ export async function createTimeshare(formData: FormData) {
 }
 
 export async function updateTimeshare(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const name = str(formData.get("name"));
   if (!id || !name) return;
@@ -78,6 +82,7 @@ export async function updateTimeshare(formData: FormData) {
 }
 
 export async function deleteTimeshare(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.timeshare.delete({ where: { id } });

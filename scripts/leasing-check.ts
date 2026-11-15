@@ -3,6 +3,7 @@
 // Exit code 1 if any FAIL. Never sends a message or calls an external API.
 import { PrismaClient } from "@prisma/client";
 import { isValidTimeZone } from "../src/lib/leasing/time";
+import { authConfig } from "../src/lib/auth";
 import { DEMO_PROPERTIES, DEMO_PROSPECT_WHERE } from "./demo-data";
 
 const prisma = new PrismaClient();
@@ -26,6 +27,9 @@ async function main() {
   const office = env("FGW_OFFICE_PHONE");
   const placeholder = /(^|\D)555(\D|$)/.test(office); // 555 numbers are fictional
   add(office && !placeholder ? "PASS" : "FAIL", "Config", !office ? "FGW_OFFICE_PHONE not set — shown on every handoff and emergency reply" : placeholder ? `FGW_OFFICE_PHONE is still the placeholder "${office}"` : `Office line ${office}`);
+
+  const auth = authConfig();
+  add(auth.ok ? "PASS" : "FAIL", "Security", auth.ok ? "Staff login set (inbox and CRM require the staff password)" : `${auth.problem} — the inbox shows prospects' phone numbers and income`);
 
   const live = env("LEASING_LIVE") === "true";
   add(live ? "WARN" : "PASS", "Go-live", live ? "LEASING_LIVE=true — agent texts real prospects" : "LEASING_LIVE is off (dry run). Flip to true only after every FAIL is cleared.");

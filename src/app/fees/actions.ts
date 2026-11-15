@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +24,7 @@ function refresh() {
 }
 
 export async function createFee(formData: FormData) {
+  await requireStaff();
   const timeshareId = str(formData.get("timeshareId"));
   const dueDate = date(formData.get("dueDate"));
   if (!timeshareId || !dueDate) return;
@@ -41,6 +44,7 @@ export async function createFee(formData: FormData) {
 }
 
 export async function togglePaid(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   const fee = await prisma.fee.findUnique({ where: { id } });
@@ -54,6 +58,7 @@ export async function togglePaid(formData: FormData) {
 }
 
 export async function deleteFee(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.fee.delete({ where: { id } });

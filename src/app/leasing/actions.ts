@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -26,6 +28,7 @@ function refresh(id?: string) {
 // Staff reply. Sends by SMS when the prospect has a phone and Twilio REST is
 // configured; web-chat prospects see it on their next poll.
 export async function staffReply(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const body = str(formData.get("body"));
   if (!id || !body) return;
@@ -45,6 +48,7 @@ export async function staffReply(formData: FormData) {
 }
 
 export async function toggleAi(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   const p = await prisma.prospect.findUnique({ where: { id } });
@@ -54,6 +58,7 @@ export async function toggleAi(formData: FormData) {
 }
 
 export async function resolveEscalation(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.prospect.update({ where: { id }, data: { needsHuman: false, escalationReason: null } });
@@ -61,6 +66,7 @@ export async function resolveEscalation(formData: FormData) {
 }
 
 export async function updateProspect(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   const status = str(formData.get("status"));
@@ -81,6 +87,7 @@ export async function updateProspect(formData: FormData) {
 }
 
 export async function setTourStatus(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
   if (!id || !status) return;
@@ -89,6 +96,7 @@ export async function setTourStatus(formData: FormData) {
 }
 
 export async function deleteProspect(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.prospect.delete({ where: { id } });
@@ -104,6 +112,7 @@ function refreshProps() {
 }
 
 export async function createProperty(formData: FormData) {
+  await requireStaff();
   const name = str(formData.get("name"));
   if (!name) return;
   await prisma.property.create({
@@ -128,6 +137,7 @@ export async function createProperty(formData: FormData) {
 }
 
 export async function deleteProperty(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.property.delete({ where: { id } });
@@ -135,6 +145,7 @@ export async function deleteProperty(formData: FormData) {
 }
 
 export async function createUnit(formData: FormData) {
+  await requireStaff();
   const propertyId = str(formData.get("propertyId"));
   const unitNumber = str(formData.get("unitNumber"));
   const bedrooms = num(formData.get("bedrooms"));
@@ -158,6 +169,7 @@ export async function createUnit(formData: FormData) {
 }
 
 export async function setUnitStatus(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
   if (!id || !status) return;
@@ -166,6 +178,7 @@ export async function setUnitStatus(formData: FormData) {
 }
 
 export async function deleteUnit(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.unit.delete({ where: { id } });
@@ -174,6 +187,7 @@ export async function deleteUnit(formData: FormData) {
 
 // Paste one AMI row: household sizes 1..8 as comma-separated max incomes.
 export async function upsertIncomeLimits(formData: FormData) {
+  await requireStaff();
   const propertyId = str(formData.get("propertyId"));
   const amiPercent = num(formData.get("amiPercent"));
   const values = (str(formData.get("limits")) ?? "")

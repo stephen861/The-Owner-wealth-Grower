@@ -16,7 +16,7 @@ const links = [
 export default function Sidebar() {
   const pathname = usePathname();
   // The public prospect chat page has no staff navigation.
-  if (pathname.startsWith("/chat")) return null;
+  if (pathname.startsWith("/chat") || pathname.startsWith("/login")) return null;
   return (
     <aside className="sidebar">
       <div className="brand">

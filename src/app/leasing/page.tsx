@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, labelFor, PROSPECT_STATUS, timeAgo } from "@/lib/format";
 import { leasingLive, testNumbers } from "@/lib/leasing/twilio";
 import { formatInZone } from "@/lib/leasing/time";
+import { logout } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -74,11 +75,12 @@ export default async function LeasingInbox({
       <div className="page-head">
         <div>
           <h1>FGW Leasing Agent</h1>
-          <p>24/7 AI leasing for affordable housing — SMS + web chat, pre-screening, tours, handoffs.</p>
+          <p>24/7 AI leasing: SMS + web chat, intake for staff review, tours, handoffs.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <Link className="btn ghost" href="/leasing/properties">Properties & units</Link>
           <Link className="btn" href="/chat" target="_blank">Open web chat ↗</Link>
+          <form action={logout}><button className="btn ghost" type="submit">Log out</button></form>
         </div>
       </div>
 

@@ -125,12 +125,12 @@ export function labelFor(
 // ── Leasing agent ───────────────────────────────────────────────
 export const PROSPECT_STATUS = [
   { value: "NEW", label: "New" },
-  { value: "PRESCREENED", label: "Pre-qualified" },
+  { value: "PRESCREENED", label: "Info collected" },
   { value: "TOUR_SCHEDULED", label: "Tour scheduled" },
   { value: "APPLYING", label: "Applying" },
   { value: "WAITLIST", label: "Waitlist" },
   { value: "LEASED", label: "Leased" },
-  { value: "NOT_ELIGIBLE", label: "Not eligible" },
+  { value: "NOT_ELIGIBLE", label: "Not moving forward (staff decision)" },
   { value: "CLOSED", label: "Closed" },
 ];
 

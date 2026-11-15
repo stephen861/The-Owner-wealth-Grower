@@ -2,7 +2,7 @@
 // the agent cannot read or change any other person's record.
 import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
-import { screenUnits } from "./eligibility";
+import { AGENT_STATUSES, missingIntakeItems, staffReviewNote } from "./intake";
 import { formatInZone, parseWallTime, zonedToUtc } from "./time";
 
 export const PROSPECT_STATUSES = [
@@ -38,19 +38,17 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
     },
   },
   {
-    name: "prescreen_eligibility",
+    name: "record_household_info",
     description:
-      "Run the official income pre-screen against AMI limits and rent minimums. Use whenever the prospect has shared household size and gross annual income. Saves the answers to their record. Report results exactly as returned; this is a pre-screen, not an approval.",
+      "Save the household details the prospect shares for the FGW team to review: household size, gross income, voucher, bedrooms wanted. This does NOT decide eligibility and returns no verdict. The team (not you) reviews every household. Returns the items still missing so you can ask for them.",
     input_schema: {
       type: "object",
       properties: {
-        household_size: { type: "integer", minimum: 1, maximum: 15 },
-        annual_income: { type: "number", minimum: 0, description: "Gross yearly household income in USD" },
+        household_size: { type: "integer", minimum: 1, maximum: 20 },
+        annual_income: { type: "number", minimum: 0, description: "Gross yearly household income in USD (multiply monthly by 12)" },
         has_voucher: { type: "boolean", description: "Has a Housing Choice Voucher / rental subsidy" },
-        property_id: { type: "string" },
         bedrooms: { type: "integer" },
       },
-      required: ["household_size", "annual_income", "has_voucher"],
       additionalProperties: false,
     },
   },
@@ -67,7 +65,7 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
         bedrooms_wanted: { type: "integer" },
         move_in_date: { type: "string", description: "YYYY-MM-DD" },
         property_id: { type: "string" },
-        status: { type: "string", enum: [...PROSPECT_STATUSES] },
+        status: { type: "string", enum: [...AGENT_STATUSES] },
         notes: { type: "string", description: "Short leasing note to append" },
       },
       additionalProperties: false,
@@ -184,49 +182,32 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       });
     }
 
-    case "prescreen_eligibility": {
-      const householdSize = n(input.household_size);
-      const annualIncome = n(input.annual_income);
-      const hasVoucher = b(input.has_voucher) ?? false;
-      if (!householdSize || annualIncome == null) return "Error: household_size and annual_income are required.";
-      const propertyId = s(input.property_id);
-      const props = await prisma.property.findMany({
-        where: { active: true, id: propertyId },
-        include: {
-          incomeLimits: true,
-          units: { where: { status: "AVAILABLE", bedrooms: n(input.bedrooms) } },
+    case "record_household_info": {
+      const updated = await prisma.prospect.update({
+        where: { id: prospectId },
+        data: {
+          householdSize: n(input.household_size),
+          annualIncome: n(input.annual_income),
+          hasVoucher: b(input.has_voucher),
+          bedroomsWanted: n(input.bedrooms),
         },
       });
-      const results = props.map((p) => {
-        const screened = screenUnits({
-          units: p.units,
-          limits: p.incomeLimits,
-          householdSize,
-          annualIncome,
-          hasVoucher,
-          minIncomeMultiple: p.minIncomeMultiple,
-        });
-        return {
-          property_id: p.id,
-          property: p.name,
-          eligible_units: screened.filter((x) => x.eligible).map((x) => ({ unit: x.unitNumber, bedrooms: x.bedrooms, rent: x.rent, ami: x.amiPercent })),
-          not_eligible: screened.filter((x) => !x.eligible).map((x) => ({ unit: x.unitNumber, why: x.reasons })),
-        };
-      });
-      const anyEligible = results.some((r) => r.eligible_units.length > 0);
+      const missing = missingIntakeItems(updated);
+      const flag = ["NEW", "PRESCREENED"].includes(updated.status);
       await prisma.prospect.update({
         where: { id: prospectId },
         data: {
-          householdSize,
-          annualIncome,
-          hasVoucher,
-          status: anyEligible ? "PRESCREENED" : undefined,
+          status: updated.status === "NEW" ? "PRESCREENED" : undefined, // PRESCREENED = "info collected", not a decision
+          // Put the household in the staff review queue; the AI keeps chatting.
+          needsHuman: flag ? true : undefined,
+          escalationReason: flag && !updated.needsHuman ? staffReviewNote(updated) : undefined,
         },
       });
       return JSON.stringify({
-        disclaimer: "Pre-screen only. Final eligibility is determined after a complete application and income verification.",
-        any_eligible: anyEligible,
-        results,
+        saved: true,
+        still_missing: missing,
+        instruction:
+          "Do NOT tell the prospect whether they qualify, are eligible, are over or under any limit, or fit a unit size. Thank them, say the FGW team reviews every household and will follow up, ask for anything still missing, and keep helping with tours and the application link.",
       });
     }
 
@@ -244,7 +225,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
           bedroomsWanted: n(input.bedrooms_wanted),
           moveInDate: moveIn && !Number.isNaN(Date.parse(moveIn)) ? new Date(moveIn) : undefined,
           propertyId: s(input.property_id),
-          status: status && (PROSPECT_STATUSES as readonly string[]).includes(status) ? status : undefined,
+          status: status && (AGENT_STATUSES as readonly string[]).includes(status) ? status : undefined,
           notes: note ? [current?.notes, `• ${note}`].filter(Boolean).join("\n") : undefined,
         },
       });

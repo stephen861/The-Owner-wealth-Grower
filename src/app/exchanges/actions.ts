@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -30,6 +32,7 @@ function refresh() {
 }
 
 export async function createMembership(formData: FormData) {
+  await requireStaff();
   const name = str(formData.get("name"));
   if (!name) return;
   await prisma.exchangeMembership.create({
@@ -49,6 +52,7 @@ export async function createMembership(formData: FormData) {
 }
 
 export async function deleteMembership(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.exchangeMembership.delete({ where: { id } });
@@ -56,6 +60,7 @@ export async function deleteMembership(formData: FormData) {
 }
 
 export async function createDeposit(formData: FormData) {
+  await requireStaff();
   const membershipId = str(formData.get("membershipId"));
   if (!membershipId) return;
   await prisma.exchangeDeposit.create({
@@ -76,6 +81,7 @@ export async function createDeposit(formData: FormData) {
 }
 
 export async function setDepositStatus(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
   if (!id || !status) return;
@@ -84,6 +90,7 @@ export async function setDepositStatus(formData: FormData) {
 }
 
 export async function deleteDeposit(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.exchangeDeposit.delete({ where: { id } });
@@ -91,6 +98,7 @@ export async function deleteDeposit(formData: FormData) {
 }
 
 export async function createPerk(formData: FormData) {
+  await requireStaff();
   const membershipId = str(formData.get("membershipId"));
   const name = str(formData.get("name"));
   if (!membershipId || !name) return;
@@ -110,6 +118,7 @@ export async function createPerk(formData: FormData) {
 
 // Record additional usage against a perk's balance (e.g. redeem $50).
 export async function usePerk(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   const amount = flt(formData.get("amount"));
   if (!id || amount == null) return;
@@ -123,6 +132,7 @@ export async function usePerk(formData: FormData) {
 }
 
 export async function deletePerk(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.membershipPerk.delete({ where: { id } });

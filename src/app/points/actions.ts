@@ -1,5 +1,7 @@
 "use server";
 
+import { requireStaff } from "@/lib/staff";
+
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +24,7 @@ function refresh() {
 }
 
 export async function upsertPointsAccount(formData: FormData) {
+  await requireStaff();
   const timeshareId = str(formData.get("timeshareId"));
   const useYear = int(formData.get("useYear"));
   if (!timeshareId || !useYear) return;
@@ -42,6 +45,7 @@ export async function upsertPointsAccount(formData: FormData) {
 }
 
 export async function deletePointsAccount(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.pointsAccount.delete({ where: { id } });
@@ -49,6 +53,7 @@ export async function deletePointsAccount(formData: FormData) {
 }
 
 export async function createBenefit(formData: FormData) {
+  await requireStaff();
   const timeshareId = str(formData.get("timeshareId"));
   const name = str(formData.get("name"));
   if (!timeshareId || !name) return;
@@ -70,6 +75,7 @@ export async function createBenefit(formData: FormData) {
 }
 
 export async function deleteBenefit(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   await prisma.benefit.delete({ where: { id } });
@@ -78,6 +84,7 @@ export async function deleteBenefit(formData: FormData) {
 
 // Increment a benefit's used allowance by 1 (quick "redeem" button).
 export async function redeemBenefit(formData: FormData) {
+  await requireStaff();
   const id = str(formData.get("id"));
   if (!id) return;
   const b = await prisma.benefit.findUnique({ where: { id } });
