@@ -75,7 +75,7 @@ InSync. Every table is prefixed `Demo*`, so it cannot touch the data above.
 ```bash
 npm run demo:seed        # load the one synthetic demo dataset
 npm run dev              # then open http://localhost:3000/command-center
-npm test                 # 128 tests across 25 suites
+npm test                 # 131 tests across 25 suites
 npm run demo:whiteboard  # end-to-end whiteboard projection demonstration
 ```
 

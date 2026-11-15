@@ -552,6 +552,7 @@ export function buildDemoDataset(now: Date = new Date()) {
   // --- Agent check-ins ---------------------------------------------------
   const agentCheckIns = [
     {
+      sourceId: "AFLH-AG-001",
       division: "AFLH",
       agentName: "DEMO Readiness Sweep",
       scope: "AFLH facility checklist review",
@@ -561,6 +562,7 @@ export function buildDemoDataset(now: Date = new Date()) {
       blockedReason: null as string | null,
     },
     {
+      sourceId: "FGW-AG-001",
       division: "FGW",
       agentName: "DEMO Work Order Triage",
       scope: "FGW work order prioritisation",
@@ -570,6 +572,7 @@ export function buildDemoDataset(now: Date = new Date()) {
       blockedReason: null,
     },
     {
+      sourceId: "FGW-AG-002",
       division: "FGW",
       agentName: "DEMO Cost Reconciler",
       scope: "Money log to job matching",
@@ -579,6 +582,7 @@ export function buildDemoDataset(now: Date = new Date()) {
       blockedReason: null,
     },
     {
+      sourceId: "AFLH-AG-002",
       division: "AFLH",
       // Blocked, but its own note claims everything is fine. The UI reports
       // BLOCKED regardless of the note's wording.
@@ -590,6 +594,7 @@ export function buildDemoDataset(now: Date = new Date()) {
       blockedReason: "No connected integration; nothing was actually sent.",
     },
     {
+      sourceId: "FGW-AG-003",
       division: "FGW",
       agentName: "DEMO Supply Watcher",
       scope: "Furnishing and supply thresholds",

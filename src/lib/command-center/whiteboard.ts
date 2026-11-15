@@ -11,6 +11,11 @@
 //   generated locally; applying it to a real board is a deliberate human step,
 //   documented in docs/command-center-prototype.md.
 //
+//   No board write API was verified in this session and none is used. That is
+//   a statement about this build, not a universal claim: board updates may be
+//   supported through approved Claude tooling. This module neither assumes nor
+//   activates any such access.
+//
 // Why the allowlist is strict:
 //   The target boards are shared with anyone who has the link. A public
 //   surface gets codes and counts — never money, names, addresses, contact
@@ -42,7 +47,10 @@ export const WHITEBOARD_ADAPTER_CAPABILITIES = {
   reverseWrite: false,
   /** Never opens a network connection. */
   networkAccess: false,
-  /** Never reads or edits a live claude.ai artifact. */
+  /**
+   * Never reads or edits a live claude.ai artifact. Not a claim that no
+   * supported mechanism exists — only that none is used or assumed here.
+   */
   liveArtifactSync: false,
   /** A person applies the payload; no scheduler does. */
   autonomousApply: false,
@@ -309,6 +317,9 @@ export type ProjectionSnapshot = {
   }[];
   tasks: { division: string; status: string }[];
   agents: {
+    /** Immutable identity. Card IDs key on this, never on agentName. */
+    sourceId: string;
+    /** Display label only — deliberately NOT projected. */
     agentName: string;
     division: string;
     lastCheckInAt: Date | null;
@@ -495,11 +506,14 @@ export function buildProjection(
   // --- Agent health: a blocked agent reports BLOCKED whatever its note says
   for (const agent of snapshot.agents) {
     const { health } = checkInHealth(agent, now);
+    // Keyed on the immutable source ID. Renaming an automation therefore
+    // updates its existing card rather than orphaning it, and the display
+    // name never reaches the payload at all.
     raw.push({
-      id: cardId("AGENT_HEALTH", agent.division, agent.agentName),
+      id: cardId("AGENT_HEALTH", agent.sourceId),
       kind: "AGENT_HEALTH",
       division: agent.division,
-      code: cardId("AGENT_HEALTH", agent.division, agent.agentName).replace("CC-AGENT-", ""),
+      code: agent.sourceId,
       status: health,
       blocked: agent.blocked,
       blockedReasonCode: slugReason(agent.blockedReason),

@@ -79,6 +79,7 @@ function snapshot(overrides: Partial<ProjectionSnapshot> = {}): ProjectionSnapsh
     ],
     agents: [
       {
+        sourceId: "AFLH-AG-001",
         agentName: "DEMO Readiness Sweep",
         division: "AFLH",
         lastCheckInAt: new Date("2026-11-15T10:00:00Z"),
@@ -86,6 +87,7 @@ function snapshot(overrides: Partial<ProjectionSnapshot> = {}): ProjectionSnapsh
         blocked: false,
       },
       {
+        sourceId: "AFLH-AG-002",
         agentName: "DEMO Referral Notifier",
         division: "AFLH",
         lastCheckInAt: new Date("2026-11-15T06:00:00Z"),
@@ -175,10 +177,11 @@ describe("stable IDs", () => {
     assert.equal(new Set(ids).size, ids.length);
   });
 
-  it("normalises agent names into safe, stable codes", () => {
+  it("keys agent cards on the immutable source ID, not the display name", () => {
     const card = build().cards.find((c) => c.kind === "AGENT_HEALTH")!;
     assert.match(card.id, /^CC-AGENT-[A-Z0-9-]+$/);
     assert.ok(!card.id.includes(" "));
+    assert.match(card.code, /^(FGW|AFLH)-AG-\d{3}$/, "the code is a source ID");
   });
 
   it("emits a deterministic content hash that ignores version and timestamp", () => {
@@ -205,13 +208,11 @@ describe("sanitized allowlist (the target boards are shared by link)", () => {
     assert.deepEqual(auditProjection(build()), []);
   });
 
-  it("does not flag a money WORD inside an automation's own name", () => {
-    // Regression: an agent called "DEMO Cost Reconciler" becomes the code
-    // FGW-DEMO-COST-RECONCILER. That is a system label, not a financial
-    // value, and must not trip the audit.
+  it("does not project an agent's display name at all", () => {
     const snap = snapshot();
     snap.agents = [
       {
+        sourceId: "FGW-AG-002",
         agentName: "DEMO Cost Reconciler",
         division: "FGW",
         lastCheckInAt: new Date("2026-11-15T11:00:00Z"),
@@ -220,11 +221,25 @@ describe("sanitized allowlist (the target boards are shared by link)", () => {
       },
     ];
     const projection = build(1, GENERATED_AT, snap);
+    const serialized = JSON.stringify(projection.cards);
+    assert.ok(!serialized.includes("Cost Reconciler"), "display name must not be projected");
+    assert.ok(!serialized.includes("COST-RECONCILER"), "nor a slug of it");
     assert.ok(
-      projection.cards.some((c) => c.code.includes("COST")),
-      "the agent code should be present",
+      projection.cards.some((c) => c.code === "FGW-AG-002"),
+      "the immutable source ID is the code",
     );
     assert.deepEqual(auditProjection(projection), []);
+  });
+
+  it("does not flag a money word inside an identifier code", () => {
+    // The audit targets money-shaped keys and values, not substrings inside
+    // an identifier. A code such as FGW-COST-CENTRE-01 is not a money value.
+    const base = build();
+    const tampered = {
+      ...base,
+      cards: [...base.cards, { ...base.cards[0], code: "FGW-COST-CENTRE-01" }],
+    };
+    assert.deepEqual(auditProjection(tampered), []);
   });
 
   it("still flags a genuine money leak", () => {
@@ -359,7 +374,8 @@ describe("sanitized allowlist (the target boards are shared by link)", () => {
 // ---------------------------------------------------------------------------
 describe("projection content", () => {
   it("reports a blocked agent as BLOCKED even though its note claims all clear", () => {
-    const card = build().cards.find((c) => c.id.includes("REFERRAL-NOTIFIER"))!;
+    // Looked up by the blocked agent's immutable source ID, not its name.
+    const card = build().cards.find((c) => c.id === "CC-AGENT-AFLH-AG-002")!;
     assert.equal(card.status, "BLOCKED");
     assert.equal(card.blocked, true);
     assert.equal(card.blockedReasonCode, "INTEGRATION_NOT_CONNECTED");
@@ -599,24 +615,48 @@ describe("demonstration: a status change flows into a new projection", () => {
     assert.deepEqual(auditProjection(after), []);
   });
 
-  it("gives a renamed agent a new card ID, leaving the old card orphaned", () => {
-    // Documented limitation, asserted rather than hidden: card IDs are
-    // derived from the agent's name, so renaming an automation produces a new
-    // card. Whoever applies the projection must remove the superseded card —
-    // which is exactly how stale agent names survive on a board.
+  it("keeps a renamed agent's card ID stable, so no card is orphaned", () => {
+    // Regression test. Card IDs key on the immutable source ID, never on the
+    // mutable display name, so renaming an automation updates its existing
+    // card instead of creating a second one and leaving a stale card behind.
+    const before = build(1);
+    const beforeCard = before.cards.find((c) => c.id === "CC-AGENT-AFLH-AG-001")!;
+    assert.ok(beforeCard, "expected the agent card keyed on its source ID");
+
     const renamed = snapshot();
-    renamed.agents = [{ ...renamed.agents[0], agentName: "DEMO Readiness Sweep v2" }];
+    renamed.agents = renamed.agents.map((a) =>
+      a.sourceId === "AFLH-AG-001"
+        ? { ...a, agentName: "DEMO Readiness Sweep v2 (renamed)" }
+        : a,
+    );
+    const after = build(2, GENERATED_AT, renamed);
 
-    const beforeIds = build(1).cards.filter((c) => c.kind === "AGENT_HEALTH").map((c) => c.id);
-    const afterIds = build(2, GENERATED_AT, renamed)
-      .cards.filter((c) => c.kind === "AGENT_HEALTH")
-      .map((c) => c.id);
+    const beforeAgentIds = before.cards
+      .filter((c) => c.kind === "AGENT_HEALTH")
+      .map((c) => c.id)
+      .sort();
+    const afterAgentIds = after.cards
+      .filter((c) => c.kind === "AGENT_HEALTH")
+      .map((c) => c.id)
+      .sort();
 
-    assert.ok(beforeIds.includes("CC-AGENT-AFLH-DEMO-READINESS-SWEEP"));
-    assert.ok(afterIds.includes("CC-AGENT-AFLH-DEMO-READINESS-SWEEP-V2"));
-    assert.ok(
-      !afterIds.includes("CC-AGENT-AFLH-DEMO-READINESS-SWEEP"),
-      "the old ID is absent from the new projection, so it must be pruned on apply",
+    assert.deepEqual(
+      afterAgentIds,
+      beforeAgentIds,
+      "a rename must not add, remove or change any agent card ID",
+    );
+
+    const afterCard = after.cards.find((c) => c.id === "CC-AGENT-AFLH-AG-001")!;
+    assert.equal(afterCard.code, beforeCard.code, "the code is the source ID, unchanged");
+    assert.equal(
+      afterCard.status,
+      beforeCard.status,
+      "a pure rename changes nothing the board can see",
+    );
+    assert.equal(
+      after.contentHash,
+      before.contentHash,
+      "a rename alone must not even change the content hash",
     );
   });
 

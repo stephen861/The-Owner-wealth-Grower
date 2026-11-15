@@ -5,7 +5,8 @@
 //   3. change a synthetic command-center status
 //   4. apply again                                    -> APPLIED v2, new hash
 //   5. re-apply the superseded payload                -> REJECTED_STALE
-//   6. simulate a transport failure                   -> stays visibly FAILED
+//   6. rename an agent                                -> card ID unchanged
+//   7. simulate a transport failure                   -> stays visibly FAILED
 //
 // No external board is contacted at any point.
 import { prisma } from "../src/lib/prisma";
@@ -50,6 +51,7 @@ async function loadSnapshot(): Promise<ProjectionSnapshot> {
     jobs,
     tasks,
     agents: agents.map((a) => ({
+      sourceId: a.sourceId,
       agentName: a.agentName,
       division: a.division,
       lastCheckInAt: a.lastCheckInAt,
@@ -146,7 +148,29 @@ async function main() {
   line(`   outcome            ${stale.outcome}`);
   line(`   detail             ${stale.detail}`);
 
-  step(6, "Simulate a transport failure — must stay visibly failed");
+  step(6, "Rename an agent — its card must NOT be orphaned");
+  const agent = await prisma.demoAgentCheckIn.findFirstOrThrow({
+    where: { sourceId: "AFLH-AG-001" },
+  });
+  const before6 = await project(3, new Date("2026-11-15T10:30:00Z"));
+  await prisma.demoAgentCheckIn.update({
+    where: { id: agent.id },
+    data: { agentName: `${agent.agentName} v2 (renamed)` },
+  });
+  const after6 = await project(3, new Date("2026-11-15T10:30:00Z"));
+  const ids = (p: Awaited<ReturnType<typeof project>>) =>
+    p.cards.filter((c) => c.kind === "AGENT_HEALTH").map((c) => c.id).sort().join(",");
+  line(`   renamed            "${agent.agentName}" -> "${agent.agentName} v2 (renamed)"`);
+  line(`   card ID            CC-AGENT-${agent.sourceId} (keyed on the source ID)`);
+  line(`   agent card IDs     ${ids(before6) === ids(after6) ? "IDENTICAL" : "CHANGED"}`);
+  line(`   content hash       ${before6.contentHash === after6.contentHash ? "IDENTICAL (rename is invisible to the board)" : "CHANGED"}`);
+  line(`   name in payload    ${JSON.stringify(after6.cards).includes("renamed") ? "PRESENT (bad)" : "absent (display name never projected)"}`);
+  await prisma.demoAgentCheckIn.update({
+    where: { id: agent.id },
+    data: { agentName: agent.agentName },
+  });
+
+  step(7, "Simulate a transport failure — must stay visibly failed");
   const t3 = new Date("2026-11-15T11:00:00Z");
   state = recordFailure(state, "Simulated apply failure (demonstration).", t3);
   const after = syncStatus(state, new Date("2026-11-15T11:30:00Z"));
@@ -160,8 +184,9 @@ async function main() {
 
   line("\n── Result ──────────────────────────────────────────────────");
   line("   A status change produced an updated projection under the same");
-  line("   stable card ID; duplicate and stale payloads were rejected; and");
-  line("   an earlier success did not mask the later failure.");
+  line("   stable card ID; duplicate and stale payloads were rejected; an");
+  line("   agent rename orphaned nothing; and an earlier success did not mask");
+  line("   the later failure.");
   line("   Nothing left this machine.\n");
 }
 

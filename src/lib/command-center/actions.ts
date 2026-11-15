@@ -353,6 +353,7 @@ async function loadProjectionSnapshot(): Promise<ProjectionSnapshot> {
     jobs,
     tasks,
     agents: agents.map((a) => ({
+      sourceId: a.sourceId,
       agentName: a.agentName,
       division: a.division,
       lastCheckInAt: a.lastCheckInAt,

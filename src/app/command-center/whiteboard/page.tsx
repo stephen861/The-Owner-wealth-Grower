@@ -393,9 +393,13 @@ export default async function WhiteboardPage({
       <div className="panel">
         <h2>How to actually apply this to a Claude board</h2>
         <div className="cc-notice warn">
-          <strong>No programmatic board API is used or assumed here.</strong> This
-          prototype does not have, and does not claim, write access to the boards at the
-          recorded URLs.
+          <strong>
+            No board write API was verified in this session, and none is used here.
+          </strong>{" "}
+          That is a statement about this build, not a universal claim: board updates may
+          well be supported through approved Claude tooling. This prototype simply does
+          not have, assume or activate any such access, and no access was sought. If you
+          want a supported path wired up, that is a separate, explicit piece of work.
         </div>
         <p>The supported route is a deliberate, human-driven step:</p>
         <ol>
@@ -406,7 +410,9 @@ export default async function WhiteboardPage({
           <li>
             A person opens the target board in Claude and asks for the card set to be
             updated from the payload, reviewing the diff before it is saved. The board is
-            re-published as a new version by that person.
+            re-published as a new version by that person. Where approved Claude tooling
+            supports updating an artifact, that is the route — initiated and reviewed by
+            a person, never by this app.
           </li>
           <li>
             Because the board is <strong>shared with anyone who has the link</strong>, only
@@ -420,9 +426,11 @@ export default async function WhiteboardPage({
         </ol>
         <p className="subnote">
           Card IDs are stable across regenerations, so a re-apply updates the same card
-          rather than appending a duplicate. One exception, deliberately surfaced: renaming
-          an agent produces a new card ID, so the superseded card must be pruned by hand —
-          which is how stale agent names survive on a board.
+          rather than appending a duplicate. Agent cards key on an <strong>immutable
+          source ID</strong>, never on the display name, so renaming an automation updates
+          its existing card instead of orphaning it — and the display name is never
+          projected at all. That closes the mechanism by which stale agent names survive
+          on a board.
         </p>
 
         <h2 style={{ marginTop: 20 }}>Payload preview (first 6 cards)</h2>

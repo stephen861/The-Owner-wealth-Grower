@@ -7,7 +7,7 @@ invented. Nothing connects to a live system.**
 - Routes live under `/command-center`.
 - Every table is prefixed `Demo*`.
 - Run it: `npm install && npx prisma generate && npx prisma db push && npm run demo:seed && npm run dev`
-- Tests: `npm test` (128 tests, 25 suites)
+- Tests: `npm test` (131 tests, 25 suites)
 - Demonstration: `npm run demo:whiteboard`
 
 ## Scope boundaries this prototype respects
@@ -147,7 +147,7 @@ Declared and tested capabilities (`WHITEBOARD_ADAPTER_CAPABILITIES`):
 | Outbound projection | yes |
 | Reverse write | **no** |
 | Network access | **no** |
-| Live artifact sync | **no** |
+| Live artifact sync | **no** (not used or assumed; not a claim that no supported mechanism exists) |
 | Autonomous apply | **no** |
 
 One-way by construction: the module exports no function that accepts a board
@@ -183,11 +183,22 @@ Enforcement is two-layer:
 
 ### Stable IDs, versions and hashes
 
-Card IDs derive from **source IDs**, not database `cuid`s, so reseeding the demo
-dataset reproduces identical IDs — the same property the board's `R-xx` IDs
-have. The content hash covers card content with `version` and `updatedAt`
-excluded, so a regenerated-but-unchanged payload hashes identically and a no-op
-is detectable.
+Card IDs derive from **immutable source IDs**, not database `cuid`s and not
+mutable display names, so reseeding the demo dataset reproduces identical IDs —
+the same property the board's `R-xx` IDs have. The content hash covers card
+content with `version` and `updatedAt` excluded, so a regenerated-but-unchanged
+payload hashes identically and a no-op is detectable.
+
+**Renaming never orphans a card.** `DemoAgentCheckIn` carries an immutable
+`sourceId` (`AFLH-AG-001`, `FGW-AG-002`, …) unique per division, and agent cards
+key on it. `agentName` is a display label that is **never projected at all** —
+not as a value and not as a slug. Renaming an automation therefore updates its
+existing card; it does not create a second one and leave a stale card behind.
+Asserted by a regression test: after a rename, the set of agent card IDs is
+unchanged, the card's code is unchanged, and the projection's **content hash is
+identical** — a pure rename is invisible to the board. A second test asserts the
+database rejects a duplicate `(division, sourceId)` for an agent, and a third
+renames an agent in the database and confirms its identity survives.
 
 ### Duplicate and stale rejection
 
@@ -220,17 +231,22 @@ derive health from a schedule or a timestamp.
 
 ### How to actually apply a projection to the Claude board
 
-**There is no programmatic board API used or assumed here, and this prototype
-has no write access to the recorded boards.** The supported route is a
-deliberate human step:
+**No board write API was verified in this session, and none is used or assumed
+here.** That is a statement about this build, not a universal claim — board
+updates may well be supported through approved Claude tooling. This prototype
+does not have, assume or activate any such access, and no access was sought or
+requested. If a supported path should be wired up, that is separate, explicit
+work.
+
+The route exercised here is a deliberate human step:
 
 1. Generate a projection on the Whiteboard screen (or from the demo script) and
    take the payload.
 2. A person opens the target board in Claude and asks for the card set to be
-   updated from that payload, reviews the diff, and re-publishes the board. In a
-   Claude Code session that holds the artifact tool, updating an existing
-   artifact requires reading it first and then publishing to the same URL — a
-   person initiates and reviews that, it is not wired to anything here.
+   updated from that payload, reviews the diff, and re-publishes the board. Where
+   approved Claude tooling supports updating an artifact, that is the route —
+   initiated and reviewed by a person, never by this app. Nothing here is wired
+   to it.
 3. Because the board is link-shared, **only the allowlisted payload may be
    pasted** — never a command-center screenshot, a money figure, a name or an
    address.
@@ -240,10 +256,9 @@ deliberate human step:
 Stable card IDs mean a re-apply updates the same card rather than appending a
 duplicate.
 
-**Known limitation, asserted by a test rather than hidden:** card IDs for agents
-derive from the agent's name, so renaming an automation yields a *new* card and
-the superseded card must be pruned by hand. That is precisely how stale agent
-names survive on a board.
+Agent cards key on an immutable source ID, so renaming an automation updates its
+existing card rather than leaving a stale one behind — see "Stable IDs" above.
+That closes the mechanism by which stale agent names survive on a board.
 
 ### The existing boards and sheet
 
@@ -301,11 +316,22 @@ prefixed `DEMO`.
 
 ### AFLH Operations Hub (separate base)
 
-Ten tables, all empty in the audit. Nine were named — hiring, staff, compliance,
-coverage, onboarding, training, performance, incidents, referrals — and **the
-tenth was not identified**. None is modelled. The Modules screen lists them as
-`EMPTY / NOT MODELLED`, and the unidentified tenth as `UNKNOWN`, rather than
-inventing it.
+Ten tables, all empty in the audit, now confirmed by their exact names:
+
+Applicants · Open Positions · Employee Roster · Compliance · Shift Coverage ·
+Onboarding · Training · Performance · Incidents · Referral Pipeline
+
+**None is modelled.** The Modules screen lists all ten as `EMPTY / NOT MODELLED`.
+
+An earlier revision of that screen carried nine approximated names plus an
+`UNKNOWN` placeholder row. The approximation "Hiring" stood in for what the audit
+resolves into two distinct tables — **Applicants** and **Open Positions** — so the
+placeholder is now filled rather than a duplicate module being added. No module
+was created for any of them.
+
+Note that the hub's **Referral Pipeline** is a separate, empty table. It is *not*
+the administrative referral pipeline this prototype models, and the two are not
+synced or conflated.
 
 ## Import mapping & reconciliation — documentation only
 
@@ -350,7 +376,7 @@ The division filter is in the sub-nav and applies to every screen.
 
 ## Test coverage
 
-128 tests, 25 suites, `npm test`.
+131 tests, 25 suites, `npm test`.
 
 | Area | What is asserted |
 | --- | --- |
@@ -359,7 +385,7 @@ The division filter is in the sub-nav and applies to every screen.
 | Filtering | `FGW + AFLH = ALL` across six tables; a filter returns only its own division; the filter value is validated |
 | Approval gate | Refused while blocked; refused with no named decider; refused for any non-human actor; refused twice; mismatch warning when the note contradicts the block; rejection of a blocked subject allowed |
 | Duplicate source ID | First occurrence kept and later ones reported; division-scoped; whitespace-insensitive; blank/null quarantined; DB unique index rejects a second insert; fixture never written |
-| Whiteboard | Stable IDs across regenerations; allowlist shape enforcement; leak audit clean on a full projection and failing on a tampered one; duplicate/stale/conflict rejection; failed sync stays failed; no reverse-write export surface |
+| Whiteboard | Stable IDs across regenerations; **a rename leaves card IDs and the content hash identical**; an agent's display name is never projected; allowlist shape enforcement; leak audit clean on a full projection and failing on a tampered one; duplicate/stale/conflict rejection; failed sync stays failed; no reverse-write export surface |
 | Data hygiene | No contact looks real; no banned personal field exists on a placement |
 
 ## Gaps and what is deliberately not built
@@ -367,17 +393,19 @@ The division filter is in the sub-nav and applies to every screen.
 - **No importer.** Mapping and reconciliation are documented and tested against a
   fixture only.
 - **No live board sync.** Applying a projection is a manual human step. No board
-  API is used or assumed.
+  write API was verified in this session and none is used or assumed — which is
+  not a claim that none exists. A supported path through approved Claude tooling
+  was deliberately neither invented nor activated.
 - **No authentication or multi-user model.** Single-operator, local.
 - **`actorIsHuman` is asserted, not proven.** The approval action hard-codes it
   because the action is only reachable from a UI form. Real enforcement needs
   authentication, which is out of scope here.
 - **No clinical, eligibility, payroll, payment or messaging capability** — by
   instruction, and absent from the schema rather than merely unexposed.
-- **Agent rename orphans a card** (above).
 - **Money is `Int` cents here but `Float` in the older tables.** Inconsistent
   across the repo; the older tables were not touched.
-- **The tenth Operations Hub table is unidentified** and was not invented.
+- **The Operations Hub's ten tables are confirmed but none is modelled** —
+  listed as `EMPTY / NOT MODELLED` on the Modules screen.
 - **Furnishing & Supplies, Contacts and SOP Reference are stored without a
   dedicated screen** — present in the data model and counted on the Modules
   screen, not yet surfaced.

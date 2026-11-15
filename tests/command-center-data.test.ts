@@ -412,6 +412,39 @@ describe("duplicate source IDs at the storage layer", () => {
     );
   });
 
+  it("rejects a second agent with the same (division, sourceId)", async () => {
+    const existing = await prisma.demoAgentCheckIn.findFirstOrThrow();
+    await assert.rejects(
+      () =>
+        prisma.demoAgentCheckIn.create({
+          data: {
+            sourceId: existing.sourceId,
+            division: existing.division,
+            agentName: "DEMO duplicate agent",
+            scope: "duplicate attempt",
+          },
+        }),
+      /Unique constraint|UNIQUE/i,
+    );
+  });
+
+  it("lets an agent be renamed without changing its identity", async () => {
+    const agent = await prisma.demoAgentCheckIn.findFirstOrThrow({
+      where: { sourceId: "AFLH-AG-001" },
+    });
+    const renamed = await prisma.demoAgentCheckIn.update({
+      where: { id: agent.id },
+      data: { agentName: "DEMO Readiness Sweep (renamed)" },
+    });
+    assert.equal(renamed.sourceId, agent.sourceId, "the source ID is immutable in practice");
+    assert.equal(renamed.id, agent.id);
+    assert.notEqual(renamed.agentName, agent.agentName);
+    await prisma.demoAgentCheckIn.update({
+      where: { id: agent.id },
+      data: { agentName: agent.agentName },
+    });
+  });
+
   it("accepts the same source ID in the other division", async () => {
     const created = await prisma.demoWorkOrder.create({
       data: { sourceId: "FGW-WO-001", division: "AFLH", title: "DEMO — cross-division ID" },

@@ -23,18 +23,24 @@ const TABLE_MAP: { source: string; module: string; status: string }[] = [
   { source: "SOP Reference", module: "Stored, no dedicated screen", status: "STORED" },
 ];
 
-// The separate operations hub. Nine tables were named in the audit; all were
-// empty, and the tenth was not identified. None is modelled here.
+// The separate operations hub. All ten tables are now confirmed by audit, by
+// their exact names. Every one was empty, and none is modelled here.
+//
+// An earlier revision of this screen listed nine approximated names plus an
+// UNKNOWN placeholder. The approximation "Hiring" stood in for what the audit
+// resolves into two distinct tables — Applicants and Open Positions — so the
+// placeholder row is now filled rather than a duplicate module being added.
 const OPS_HUB_TABLES = [
-  "Hiring",
-  "Staff",
+  "Applicants",
+  "Open Positions",
+  "Employee Roster",
   "Compliance",
-  "Coverage",
+  "Shift Coverage",
   "Onboarding",
   "Training",
   "Performance",
   "Incidents",
-  "Referrals (hub copy)",
+  "Referral Pipeline",
 ];
 
 const INTEGRATIONS: {
@@ -76,7 +82,7 @@ const INTEGRATIONS: {
     state: "DOCUMENTED TARGET ONLY",
     badge: "amber",
     detail:
-      "Recorded as projection targets and disabled. The prototype generates a sanitized payload locally; a person applies it. No board was read or edited.",
+      "Recorded as projection targets and disabled. The prototype generates a sanitized payload locally; a person applies it. No board was read or edited, and no board write API was verified in this session — which is a statement about this build, not a claim that none exists.",
   },
   {
     name: "Rent Manager / InSync",
@@ -204,8 +210,10 @@ export default async function ModulesPage() {
       <div className="panel">
         <h2>AFLH Operations Hub (separate base)</h2>
         <p className="subnote" style={{ marginTop: -8, marginBottom: 12 }}>
-          The audit found ten tables, all empty. Nine were named; the tenth was not
-          identified. None is modelled here, and no screen pretends otherwise.
+          All ten tables are confirmed by audit and were empty. None is modelled here, and
+          no screen pretends otherwise. The hub&rsquo;s Referral Pipeline is a separate,
+          empty table — it is <strong>not</strong> the administrative referral pipeline
+          this prototype models, and the two are not synced.
         </p>
         <table>
           <thead>
@@ -227,15 +235,6 @@ export default async function ModulesPage() {
                 </td>
               </tr>
             ))}
-            <tr>
-              <td className="muted">(tenth table — not identified in the audit)</td>
-              <td>
-                <span className="badge amber">UNKNOWN</span>
-              </td>
-              <td>
-                <span className="badge">NOT MODELLED</span>
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>

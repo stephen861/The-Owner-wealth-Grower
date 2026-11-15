@@ -751,8 +751,15 @@ model DemoContact {
 // actually showed; `blocked` is authoritative over any claim in a note.
 model DemoAgentCheckIn {
   id       String @id @default(cuid())
+  /**
+   * Immutable identity. Whiteboard card IDs are keyed on this, NOT on
+   * agentName, so renaming an automation updates its existing card instead of
+   * orphaning it and creating a second one.
+   */
+  sourceId String
   division String @default("FGW")
 
+  /** Display label only. Safe to rename; never reaches the projection. */
   agentName        String
   scope            String
   lastCheckInAt    DateTime?
@@ -762,6 +769,8 @@ model DemoAgentCheckIn {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([division, sourceId])
 }
 
 // The approval queue. A request can only be decided by a named person; the
