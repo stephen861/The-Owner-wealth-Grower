@@ -81,3 +81,11 @@ test("no useEffect returns a value (newer Chrome scrollIntoView returns a Promis
   const src = readFileSync("src/app/chat/ChatWidget.tsx", "utf8");
   assert.doesNotMatch(src, /useEffect\(\(\) => [^{]/);
 });
+
+test("agent offers in-person tours only and shares a video link only when one exists", () => {
+  const tools = readFileSync("src/lib/leasing/tools.ts", "utf8");
+  const prompt = readFileSync("src/lib/leasing/agent.ts", "utf8");
+  assert.match(tools, /enum: \["IN_PERSON"\]/);
+  assert.match(tools, /video_tour_url: u\.tourVideoUrl \?\? null/);
+  assert.match(prompt, /never promise or mention a video/);
+});

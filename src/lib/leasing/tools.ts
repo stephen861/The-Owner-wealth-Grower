@@ -26,7 +26,7 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
   {
     name: "search_units",
     description:
-      "Search currently available or soon-available units. Returns unit number, bedrooms, rent, AMI set-aside %, accessibility, and available date. Never quote rent or availability without calling this.",
+      "Search currently available or soon-available units. Returns unit number, bedrooms, rent, AMI set-aside %, accessibility, available date, and video_tour_url when a 3D/video walkthrough exists (null when none). Never quote rent or availability without calling this.",
     input_schema: {
       type: "object",
       properties: {
@@ -80,7 +80,7 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
       properties: {
         property_id: { type: "string" },
         datetime: { type: "string", description: "YYYY-MM-DDTHH:MM local time" },
-        tour_type: { type: "string", enum: ["IN_PERSON", "VIRTUAL", "SELF_GUIDED"] },
+        tour_type: { type: "string", enum: ["IN_PERSON"], description: "Only in-person tours are offered for now." },
       },
       required: ["property_id", "datetime", "tour_type"],
       additionalProperties: false,
@@ -178,6 +178,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
           ami_set_aside: u.amiPercent ? `${u.amiPercent}% AMI` : "market rate",
           accessible: u.accessible,
           available: u.availableDate ? u.availableDate.toISOString().slice(0, 10) : "now",
+          video_tour_url: u.tourVideoUrl ?? null,
         })),
       });
     }
@@ -254,7 +255,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       });
       if (clash) return "Error: that slot is taken. Offer a time at least 30 minutes earlier or later.";
       const tour = await prisma.tour.create({
-        data: { prospectId, propertyId, scheduledAt: at, type: s(input.tour_type) ?? "IN_PERSON", status: "REQUESTED" },
+        data: { prospectId, propertyId, scheduledAt: at, type: "IN_PERSON", status: "REQUESTED" },
       });
       const whenLocal = formatInZone(at, prop.timezone);
       // Status value stays TOUR_SCHEDULED for compatibility; staff screens label it "Tour requested".

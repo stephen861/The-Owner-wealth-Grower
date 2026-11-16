@@ -221,6 +221,7 @@ model Unit {
   accessible    Boolean  @default(false) // ADA / mobility unit
   status        String   @default("AVAILABLE") // AVAILABLE | ON_HOLD | LEASED | DOWN
   availableDate DateTime?
+  tourVideoUrl  String? // 3D / video walkthrough link the agent may share
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

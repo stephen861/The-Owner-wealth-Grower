@@ -58,6 +58,7 @@ async function main() {
     if (r.ami_percent && !/^\d+$/.test(r.ami_percent)) err("units.csv", line, "ami_percent must be a number (0 = market rate)");
     if (r.status && !UNIT_STATUSES.includes(r.status.toUpperCase())) err("units.csv", line, `status must be one of ${UNIT_STATUSES.join(", ")}`);
     if (r.available_date && Number.isNaN(Date.parse(r.available_date))) err("units.csv", line, "available_date must be YYYY-MM-DD");
+    if (r.tour_video_url && !/^https:\/\//.test(r.tour_video_url)) err("units.csv", line, "tour_video_url must start with https://");
   }
   for (const [i, r] of limits.entries()) {
     const line = i + 2;
@@ -120,6 +121,7 @@ async function main() {
       accessible: yes(r.accessible ?? ""),
       status: (r.status || "AVAILABLE").toUpperCase(),
       availableDate: r.available_date ? new Date(r.available_date) : null,
+      tourVideoUrl: r.tour_video_url || null,
     };
     await prisma.unit.upsert({
       where: { propertyId_unitNumber: { propertyId, unitNumber: r.unit_number } },
