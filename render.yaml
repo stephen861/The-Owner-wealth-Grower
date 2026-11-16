@@ -47,3 +47,7 @@ services:
         sync: false
       - key: LEASING_TEST_NUMBERS
         sync: false
+      # Tour loop: who confirms tour requests by text (e.g. +16145550123).
+      # Leave empty and tour requests wait in the staff inbox instead.
+      - key: TOUR_CONFIRMER_PHONE
+        sync: false

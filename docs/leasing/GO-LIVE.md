@@ -93,3 +93,18 @@ Then:
 
 **Rollback:** set `LEASING_LIVE=false` and restart, and all outbound SMS stops immediately.
 Per-conversation: "Take over (pause AI)" on any thread.
+
+## Tour confirmation loop
+
+- `TOUR_CONFIRMER_PHONE`: the person who confirms showings (e.g. George).
+  Each tour request texts them: "Reply YES 4821 to confirm or NO 4821 to
+  decline." Their reply texts the prospect. Without it, tour requests wait in
+  the staff inbox, where Confirm / Decline buttons do the same thing.
+- The morning of a confirmed tour (from 8:00), the prospect gets a reminder.
+- An hour after the tour, the confirmer gets "Reply SHOWED 4821 or NOSHOW 4821"
+  and the answer is logged on the tour.
+- `TOUR_BOOKING_MODE=auto` (optional, default `confirm`) books any open slot
+  (tour hours, no clash with another tour) straight away and only sends the
+  confirmer a heads-up they can cancel with NO <code>.
+- Like every other text, none of these reach anyone outside
+  `LEASING_TEST_NUMBERS` until `LEASING_LIVE=true`.

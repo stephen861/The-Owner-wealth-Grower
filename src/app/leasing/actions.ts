@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { sendSms, twilioRestConfigured } from "@/lib/leasing/twilio";
 import { PROSPECT_STATUSES } from "@/lib/leasing/tools";
 import { isValidTimeZone } from "@/lib/leasing/time";
+import { applyTourStatus, TOUR_STATUSES, type TourStatus } from "@/lib/leasing/tours";
 
 function str(v: FormDataEntryValue | null): string | null {
   const s = (v ?? "").toString().trim();
@@ -90,9 +91,11 @@ export async function setTourStatus(formData: FormData) {
   await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
-  if (!id || !status || !["REQUESTED", "SCHEDULED", "COMPLETED", "NO_SHOW", "CANCELLED"].includes(status)) return;
-  const t = await prisma.tour.update({ where: { id }, data: { status } });
-  refresh(t.prospectId);
+  if (!id || !status || !(TOUR_STATUSES as readonly string[]).includes(status)) return;
+  // Same path as the confirmer's text replies: confirm/decline also texts the prospect.
+  await applyTourStatus(id, status as TourStatus);
+  const t = await prisma.tour.findUnique({ where: { id }, select: { prospectId: true } });
+  refresh(t?.prospectId);
 }
 
 export async function deleteProspect(formData: FormData) {

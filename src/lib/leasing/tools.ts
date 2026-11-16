@@ -4,6 +4,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { AGENT_STATUSES, missingIntakeItems, staffReviewNote } from "./intake";
 import { formatInZone, parseWallTime, zonedToUtc } from "./time";
+import { newTourCode, notifyTourRequested, tourBookingMode } from "./tours";
 
 export const PROSPECT_STATUSES = [
   "NEW",
@@ -254,9 +255,19 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         },
       });
       if (clash) return "Error: that slot is taken. Offer a time at least 30 minutes earlier or later.";
+      const auto = tourBookingMode() === "auto";
       const tour = await prisma.tour.create({
-        data: { prospectId, propertyId, scheduledAt: at, type: "IN_PERSON", status: "REQUESTED" },
+        data: {
+          prospectId,
+          propertyId,
+          scheduledAt: at,
+          type: "IN_PERSON",
+          status: auto ? "SCHEDULED" : "REQUESTED",
+          confirmedAt: auto ? new Date() : null,
+          code: await newTourCode(),
+        },
       });
+      await notifyTourRequested(tour.id);
       const whenLocal = formatInZone(at, prop.timezone);
       // Status value stays TOUR_SCHEDULED for compatibility; staff screens label it "Tour requested".
       const current = await prisma.prospect.findUnique({ where: { id: prospectId } });
@@ -266,10 +277,21 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         data: {
           status: "TOUR_SCHEDULED",
           propertyId,
-          needsHuman: true,
-          escalationReason: current?.escalationReason ? `${current.escalationReason} | ${ask}` : ask,
+          // Auto-booked tours need no one to confirm them.
+          needsHuman: auto ? undefined : true,
+          escalationReason: auto ? undefined : current?.escalationReason ? `${current.escalationReason} | ${ask}` : ask,
         },
       });
+      if (auto)
+        return JSON.stringify({
+          requested: true,
+          confirmed: true,
+          tour_id: tour.id,
+          property: prop.name,
+          when: whenLocal,
+          instruction:
+            "This tour IS confirmed. Tell the prospect it is booked for this time at the street address, that a member of the FGW team will meet them there, and that they'll get a reminder that morning. Never share a lockbox or entry code.",
+        });
       return JSON.stringify({
         requested: true,
         confirmed: false,

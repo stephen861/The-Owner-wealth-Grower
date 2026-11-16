@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { handleInbound } from "@/lib/leasing/agent";
 import { canText, sendSms, twilioRestConfigured, twiml, verifyTwilioSignature } from "@/lib/leasing/twilio";
 import type { AgentResult } from "@/lib/leasing/agent";
+import { handleConfirmerSms } from "@/lib/leasing/tours";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,19 @@ export async function POST(req: Request) {
   const from = params.From?.trim();
   const body = params.Body ?? "";
   if (!from) return twiml(null);
+
+  // Tour confirmer (TOUR_CONFIRMER_PHONE) replying YES/NO/SHOWED/NOSHOW <code>.
+  // Anything else from that phone goes to the agent like any other text.
+  const confirmerReply = await handleConfirmerSms(from, body);
+  if (confirmerReply !== null) {
+    if (twilioRestConfigured()) {
+      after(async () => {
+        await sendSms(from, confirmerReply).catch((e) => console.error("[sms confirmer reply]", e));
+      });
+      return twiml(null);
+    }
+    return twiml(canText(from) ? confirmerReply : null);
+  }
 
   const prospect = await prisma.prospect.upsert({
     where: { phone: from },

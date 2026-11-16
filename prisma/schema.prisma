@@ -295,6 +295,13 @@ model Tour {
   type        String   @default("IN_PERSON") // IN_PERSON | VIRTUAL | SELF_GUIDED
   status      String   @default("REQUESTED") // REQUESTED (agent) | SCHEDULED (staff confirmed) | COMPLETED | NO_SHOW | CANCELLED
   notes       String?
+  code        String?  // short number (unique by code, see newTourCode) the confirmer texts back, e.g. "YES 4821"
+  confirmedAt DateTime?
+  confirmerNotifiedAt DateTime? // when the tour request text went to TOUR_CONFIRMER_PHONE
+  reminderSentAt      DateTime? // morning-of reminder to the prospect
+  outcomeAskedAt      DateTime? // "how did it go?" text to the confirmer after the tour
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([code])
 }

@@ -127,7 +127,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                     <tr key={t.id}>
                       <td>
                         {formatInZone(t.scheduledAt, t.property.timezone, "medium")}
-                        <div className="subnote">{t.property.name} · {t.type.replace("_", " ").toLowerCase()} · {t.status.toLowerCase()}</div>
+                        <div className="subnote">{t.property.name} · {t.type.replace("_", " ").toLowerCase()} · {t.status.toLowerCase()}{t.code ? ` · #${t.code}` : ""}</div>
                       </td>
                       <td className="right">
                         {t.status === "REQUESTED" || t.status === "SCHEDULED" ? (
@@ -136,7 +136,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                               <form key={s} action={setTourStatus} className="inline-form">
                                 <input type="hidden" name="id" value={t.id} />
                                 <input type="hidden" name="status" value={s} />
-                                <button className="btn ghost small" type="submit">{s === "SCHEDULED" ? "Confirm" : s === "NO_SHOW" ? "No-show" : s[0] + s.slice(1).toLowerCase()}</button>
+                                <button className="btn ghost small" type="submit">{s === "SCHEDULED" ? "Confirm" : s === "CANCELLED" ? (t.status === "REQUESTED" ? "Decline" : "Cancel") : s === "NO_SHOW" ? "No-show" : "Showed"}</button>
                               </form>
                             ))}
                           </div>

@@ -1,0 +1,18 @@
+// Runs once when the Next.js server starts. Drives the time-based steps of the
+// tour loop (morning-of reminders, "how did it go?" texts) every 5 minutes,
+// inside the web service itself, so no separate (paid) cron job is needed.
+export async function register() {
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  if (process.env.TOUR_TICK_DISABLED === "true") return;
+  const { runTourTick } = await import("@/lib/leasing/tours");
+  const tick = async () => {
+    try {
+      const r = await runTourTick();
+      if (r.reminders || r.outcomeAsks || r.requests) console.info("[tours tick]", r);
+    } catch (e) {
+      console.error("[tours tick]", e);
+    }
+  };
+  setTimeout(tick, 30_000);
+  setInterval(tick, 5 * 60_000).unref?.();
+}
