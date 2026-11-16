@@ -56,7 +56,11 @@ export default function ChatWidget() {
     };
   }, [sessionId, busy]);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [msgs, busy]);
+  // Braces matter: newer Chrome returns a Promise from scrollIntoView, and React
+  // treats any returned value as a cleanup function, which crashed the page.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, busy]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();

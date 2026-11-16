@@ -76,3 +76,8 @@ test("tours are requests the FGW team confirms, never booked by the agent", () =
   const chat = readFileSync(new URL("../src/app/chat/ChatWidget.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(chat, /qualify|book a tour/i);
 });
+
+test("no useEffect returns a value (newer Chrome scrollIntoView returns a Promise and crashed the chat)", () => {
+  const src = readFileSync("src/app/chat/ChatWidget.tsx", "utf8");
+  assert.doesNotMatch(src, /useEffect\(\(\) => [^{]/);
+});
