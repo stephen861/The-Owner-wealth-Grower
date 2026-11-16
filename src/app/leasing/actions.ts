@@ -90,7 +90,7 @@ export async function setTourStatus(formData: FormData) {
   await requireStaff();
   const id = str(formData.get("id"));
   const status = str(formData.get("status"));
-  if (!id || !status) return;
+  if (!id || !status || !["REQUESTED", "SCHEDULED", "COMPLETED", "NO_SHOW", "CANCELLED"].includes(status)) return;
   const t = await prisma.tour.update({ where: { id }, data: { status } });
   refresh(t.prospectId);
 }

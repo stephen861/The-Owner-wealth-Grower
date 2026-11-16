@@ -65,3 +65,14 @@ test("staff session tokens: valid, expired and forged", async () => {
   assert.equal(isPublicPath("/leasing/abc"), false);
   assert.equal(isPublicPath("/"), false);
 });
+test("tours are requests the FGW team confirms, never booked by the agent", () => {
+  const tools = readFileSync(new URL("../src/lib/leasing/tools.ts", import.meta.url), "utf8");
+  const agent = readFileSync(new URL("../src/lib/leasing/agent.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(tools, /schedule_tour|booked: true/);
+  assert.match(tools, /name: "request_tour"/);
+  assert.match(tools, /status: "REQUESTED"/);
+  assert.match(tools, /confirmed: false/);
+  assert.match(agent, /Never say a tour is booked, scheduled or confirmed/);
+  const chat = readFileSync(new URL("../src/app/chat/ChatWidget.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(chat, /qualify|book a tour/i);
+});

@@ -72,9 +72,9 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
     },
   },
   {
-    name: "schedule_tour",
+    name: "request_tour",
     description:
-      "Book a tour. Confirm date, time and tour type with the prospect BEFORE calling. Give the time in the PROPERTY's local time as YYYY-MM-DDTHH:MM. Tours run 9:00–17:30 Mon–Sat, property local time.",
+      "Record a TOUR REQUEST. The FGW team (George) confirms every showing; you never book or confirm one. Agree a date, time and tour type with the prospect BEFORE calling. Give the time in the PROPERTY's local time as YYYY-MM-DDTHH:MM. Requests can be for 9:00–17:30 Mon–Sat, property local time.",
     input_schema: {
       type: "object",
       properties: {
@@ -232,7 +232,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       return "Saved.";
     }
 
-    case "schedule_tour": {
+    case "request_tour": {
       const propertyId = s(input.property_id);
       const when = s(input.datetime);
       if (!propertyId || !when) return "Error: property_id and datetime required.";
@@ -244,20 +244,40 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       if (wall.weekday === 0 || mins < 9 * 60 || mins > 17 * 60 + 30)
         return "Error: outside tour hours (Mon–Sat 9:00–17:30 property local time). Offer another time.";
       const at = zonedToUtc(wall, prop.timezone);
-      if (at.getTime() < Date.now() + 60 * 60 * 1000) return "Error: tours must be booked at least 1 hour ahead.";
+      if (at.getTime() < Date.now() + 60 * 60 * 1000) return "Error: tour requests must be at least 1 hour ahead.";
       const clash = await prisma.tour.findFirst({
         where: {
           propertyId,
-          status: "SCHEDULED",
+          status: { in: ["REQUESTED", "SCHEDULED"] },
           scheduledAt: { gte: new Date(at.getTime() - 29 * 60000), lte: new Date(at.getTime() + 29 * 60000) },
         },
       });
       if (clash) return "Error: that slot is taken. Offer a time at least 30 minutes earlier or later.";
       const tour = await prisma.tour.create({
-        data: { prospectId, propertyId, scheduledAt: at, type: s(input.tour_type) ?? "IN_PERSON" },
+        data: { prospectId, propertyId, scheduledAt: at, type: s(input.tour_type) ?? "IN_PERSON", status: "REQUESTED" },
       });
-      await prisma.prospect.update({ where: { id: prospectId }, data: { status: "TOUR_SCHEDULED", propertyId } });
-      return JSON.stringify({ booked: true, tour_id: tour.id, property: prop.name, address: prop.address, when: formatInZone(at, prop.timezone) });
+      const when = formatInZone(at, prop.timezone);
+      // Status value stays TOUR_SCHEDULED for compatibility; staff screens label it "Tour requested".
+      const current = await prisma.prospect.findUnique({ where: { id: prospectId } });
+      const ask = `Tour request: ${when} at ${prop.name}. Confirm with the prospect.`;
+      await prisma.prospect.update({
+        where: { id: prospectId },
+        data: {
+          status: "TOUR_SCHEDULED",
+          propertyId,
+          needsHuman: true,
+          escalationReason: current?.escalationReason ? `${current.escalationReason} | ${ask}` : ask,
+        },
+      });
+      return JSON.stringify({
+        requested: true,
+        confirmed: false,
+        tour_id: tour.id,
+        property: prop.name,
+        when,
+        instruction:
+          "Tell the prospect their tour REQUEST for this time is in, and that someone from the FGW team will text to confirm it. Never say the tour is booked, scheduled or confirmed, and never share an address detail, lockbox or entry code beyond the street address.",
+      });
     }
 
     case "join_waitlist": {

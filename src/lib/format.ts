@@ -126,7 +126,7 @@ export function labelFor(
 export const PROSPECT_STATUS = [
   { value: "NEW", label: "New" },
   { value: "PRESCREENED", label: "Info collected" },
-  { value: "TOUR_SCHEDULED", label: "Tour scheduled" },
+  { value: "TOUR_SCHEDULED", label: "Tour requested or confirmed" },
   { value: "APPLYING", label: "Applying" },
   { value: "WAITLIST", label: "Waitlist" },
   { value: "LEASED", label: "Leased" },

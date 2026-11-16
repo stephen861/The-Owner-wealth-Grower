@@ -1,4 +1,4 @@
-// Timezone helpers: tours are booked in the PROPERTY's local time, no matter
+// Timezone helpers: tour requests are in the PROPERTY's local time, no matter
 // what timezone the server runs in.
 
 export function isValidTimeZone(tz: string): boolean {

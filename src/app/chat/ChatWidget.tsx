@@ -13,7 +13,7 @@ function newSessionId() {
 const GREETING: Msg = {
   id: "greet",
   from: "agent",
-  body: "Hi! I'm FGW's leasing assistant. I can check available homes, see if you may qualify, and book a tour. How can I help? (¿Prefiere español? Solo escriba en español.)",
+  body: "Hi! I'm FGW's leasing assistant. I can check available homes, take your info for our team, and request a tour for you. How can I help? (¿Prefiere español? Solo escriba en español.)",
 };
 
 export default function ChatWidget() {

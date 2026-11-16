@@ -45,7 +45,7 @@ export default async function LeasingInbox({
     prisma.prospect.count({ where: { createdAt: { gte: weekAgo } } }),
     prisma.prospect.count({ where: { needsHuman: true } }),
     prisma.tour.findMany({
-      where: { status: "SCHEDULED", scheduledAt: { gte: new Date() } },
+      where: { status: { in: ["REQUESTED", "SCHEDULED"] }, scheduledAt: { gte: new Date() } },
       include: { prospect: true, property: true },
       orderBy: { scheduledAt: "asc" },
       take: 8,
@@ -67,7 +67,7 @@ export default async function LeasingInbox({
     { key: undefined, label: "All" },
     { key: "active", label: "Active pipeline" },
     { key: "human", label: `Needs staff (${needsHuman})` },
-    { key: "tours", label: "Tour scheduled" },
+    { key: "tours", label: "Tours" },
   ];
 
   return (
@@ -131,7 +131,7 @@ export default async function LeasingInbox({
           <h2>Upcoming tours</h2>
           <table>
             <thead>
-              <tr><th>When</th><th>Prospect</th><th>Property</th><th>Type</th></tr>
+              <tr><th>When</th><th>Prospect</th><th>Property</th><th>Type</th><th>Status</th></tr>
             </thead>
             <tbody>
               {upcomingTours.map((t) => (
@@ -140,6 +140,7 @@ export default async function LeasingInbox({
                   <td><Link href={`/leasing/${t.prospectId}`}>{t.prospect.name ?? t.prospect.phone ?? "Web visitor"}</Link></td>
                   <td>{t.property.name}</td>
                   <td>{t.type.replace("_", " ").toLowerCase()}</td>
+                  <td>{t.status === "REQUESTED" ? "Requested: needs confirming" : "Confirmed"}</td>
                 </tr>
               ))}
             </tbody>

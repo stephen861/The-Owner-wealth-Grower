@@ -86,7 +86,7 @@ LEASING_LIVE=false
 
 Then:
 1. Deploy. In Twilio, set the number's **A message comes in** webhook → `POST https://<domain>/api/leasing/sms`.
-2. **Test-number pilot**: from your cell, text a few real scenarios (2BR availability, "do I qualify?", Spanish, book a tour, "I need an accessible unit", "talk to a person", STOP/START).
+2. **Test-number pilot**: from your cell, text a few real scenarios (2BR availability, "do I qualify?", Spanish, request a tour (confirm it from the inbox), "I need an accessible unit", "talk to a person", STOP/START).
    Review every thread in `/leasing`.
 3. Get compliance sign-off on the pilot transcripts.
 4. Set `LEASING_LIVE=true` and restart. ✅ Live.

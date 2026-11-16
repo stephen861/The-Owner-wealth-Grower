@@ -120,7 +120,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
 
           <div className="panel">
             <h2>Tours</h2>
-            {p.tours.length === 0 ? <div className="empty">None booked.</div> : (
+            {p.tours.length === 0 ? <div className="empty">No tour requests.</div> : (
               <table>
                 <tbody>
                   {p.tours.map((t) => (
@@ -130,13 +130,13 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                         <div className="subnote">{t.property.name} · {t.type.replace("_", " ").toLowerCase()} · {t.status.toLowerCase()}</div>
                       </td>
                       <td className="right">
-                        {t.status === "SCHEDULED" ? (
+                        {t.status === "REQUESTED" || t.status === "SCHEDULED" ? (
                           <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                            {["COMPLETED", "NO_SHOW", "CANCELLED"].map((s) => (
+                            {(t.status === "REQUESTED" ? ["SCHEDULED", "CANCELLED"] : ["COMPLETED", "NO_SHOW", "CANCELLED"]).map((s) => (
                               <form key={s} action={setTourStatus} className="inline-form">
                                 <input type="hidden" name="id" value={t.id} />
                                 <input type="hidden" name="status" value={s} />
-                                <button className="btn ghost small" type="submit">{s === "NO_SHOW" ? "No-show" : s[0] + s.slice(1).toLowerCase()}</button>
+                                <button className="btn ghost small" type="submit">{s === "SCHEDULED" ? "Confirm" : s === "NO_SHOW" ? "No-show" : s[0] + s.slice(1).toLowerCase()}</button>
                               </form>
                             ))}
                           </div>
