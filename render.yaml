@@ -23,10 +23,10 @@ services:
         value: "22"
       - key: DATABASE_URL
         value: file:/var/data/fgw-leasing.db
-      # Go-live switch. Stays "false" until the owner says go: in dry run the
-      # agent only texts the numbers in LEASING_TEST_NUMBERS.
+      # Go-live switch. The owner said go on Nov 16, 2026. Set to "false" to
+      # pause: in dry run the agent only texts the numbers in LEASING_TEST_NUMBERS.
       - key: LEASING_LIVE
-        value: "false"
+        value: "true"
       # Signs the staff login cookie. Render generates a random value.
       - key: LEASING_SESSION_SECRET
         generateValue: true
