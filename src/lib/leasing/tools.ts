@@ -256,10 +256,10 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
       const tour = await prisma.tour.create({
         data: { prospectId, propertyId, scheduledAt: at, type: s(input.tour_type) ?? "IN_PERSON", status: "REQUESTED" },
       });
-      const when = formatInZone(at, prop.timezone);
+      const whenLocal = formatInZone(at, prop.timezone);
       // Status value stays TOUR_SCHEDULED for compatibility; staff screens label it "Tour requested".
       const current = await prisma.prospect.findUnique({ where: { id: prospectId } });
-      const ask = `Tour request: ${when} at ${prop.name}. Confirm with the prospect.`;
+      const ask = `Tour request: ${whenLocal} at ${prop.name}. Confirm with the prospect.`;
       await prisma.prospect.update({
         where: { id: prospectId },
         data: {
@@ -274,7 +274,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         confirmed: false,
         tour_id: tour.id,
         property: prop.name,
-        when,
+        when: whenLocal,
         instruction:
           "Tell the prospect their tour REQUEST for this time is in, and that someone from the FGW team will text to confirm it. Never say the tour is booked, scheduled or confirmed, and never share an address detail, lockbox or entry code beyond the street address.",
       });
