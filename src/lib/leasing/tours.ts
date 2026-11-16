@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { followUpsEnabled, noShowText, showedText } from "./followups";
 import { sendSms, twilioRestConfigured } from "./twilio";
 import { formatInZone } from "./time";
+import { syncProspectToTracker } from "./tracker";
 
 export type TourStatus = "REQUESTED" | "SCHEDULED" | "COMPLETED" | "NO_SHOW" | "CANCELLED";
 export const TOUR_STATUSES: readonly TourStatus[] = ["REQUESTED", "SCHEDULED", "COMPLETED", "NO_SHOW", "CANCELLED"];
@@ -118,6 +119,13 @@ function sameLocalDay(a: Date, b: Date, tz: string) {
  * Used by the confirmer's text replies and the staff inbox buttons.
  */
 export async function applyTourStatus(tourId: string, status: TourStatus): Promise<{ ok: boolean; note: string }> {
+  const out = await applyTourStatusInner(tourId, status);
+  const t = await prisma.tour.findUnique({ where: { id: tourId }, select: { prospectId: true } });
+  if (t) syncProspectToTracker(t.prospectId);
+  return out;
+}
+
+async function applyTourStatusInner(tourId: string, status: TourStatus): Promise<{ ok: boolean; note: string }> {
   const t = await loadTour(tourId);
   if (!t) return { ok: false, note: "Tour not found." };
   const open = t.status === "REQUESTED" || t.status === "SCHEDULED";

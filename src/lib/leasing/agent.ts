@@ -2,6 +2,7 @@
 // in front of and behind the model.
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { syncProspectToTracker } from "./tracker";
 import { leasingTools, runLeasingTool } from "./tools";
 
 const MODEL = "claude-opus-5-5";
@@ -70,6 +71,14 @@ export type AgentResult = { reply: string | null; escalated: boolean; messageId?
  * Returns reply=null when nothing should be sent (staff takeover / opt-out).
  */
 export async function handleInbound(prospectId: string, channel: Channel, body: string): Promise<AgentResult> {
+  try {
+    return await handleInboundInner(prospectId, channel, body);
+  } finally {
+    syncProspectToTracker(prospectId); // mirror the lead into the FGW Leasing Tracker (no-op unless configured)
+  }
+}
+
+async function handleInboundInner(prospectId: string, channel: Channel, body: string): Promise<AgentResult> {
   const text = body.trim().slice(0, 2000);
   await prisma.message.create({ data: { prospectId, direction: "IN", author: "PROSPECT", channel, body: text } });
   await prisma.prospect.update({ where: { id: prospectId }, data: { lastMessageAt: new Date() } });

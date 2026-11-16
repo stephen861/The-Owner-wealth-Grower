@@ -16,16 +16,23 @@
  *
  * Setup (owner, signed in as fgwleasing@gmail.com):
  *  1. script.google.com > New project > paste this file.
- *  2. Fill SHEET_ID (the tracker's ID from its URL).
+ *  2. SHEET_ID is already filled in (FGW Leasing Tracker – Showings & Prospects).
  *  3. Run setup() once and approve Google's permission screen.
+ *  3b. Texting agent leads (optional, same script): run setupAgentWebhook() once,
+ *     then Deploy > New deployment > Web app, execute as Me, access Anyone.
+ *     Copy the web app URL and the token from the run log into Render as
+ *     TRACKER_WEBHOOK_URL and TRACKER_WEBHOOK_TOKEN. The agent then keeps one
+ *     row per texting prospect up to date in the "Texting agent leads" tab.
  *  4. SEND_ENABLED stays false until the email wording is approved: until then
  *     leads are logged with "would send" and nothing goes out.
  */
 
 const CONFIG = {
   SEND_ENABLED: false,               // flip to true only after wording approval
-  SHEET_ID: '',                      // tracker spreadsheet ID
+  // FGW Leasing Tracker – Showings & Prospects (shared with fgwleasing@gmail.com as editor)
+  SHEET_ID: '1J8W_6FujBVdNoKEbYYKASKHKWqH80zDGrcgrj9uJsY4',
   SHEET_TAB: 'AffordableHousing leads',
+  AGENT_TAB: 'Texting agent leads',  // one row per prospect, updated in place
   AGENT_NUMBER: '614-820-5332',
   FROM_NAME: 'FGW Property Management',
   TIMEZONE: 'America/New_York',
@@ -155,4 +162,63 @@ function getLabel_() {
 function match_(text, re) {
   const m = text.match(re);
   return m ? m[1].replace(/\s+/g, ' ').trim() : '';
+}
+
+// ---- Texting agent leads (posted by the leasing agent on Render) ----------
+
+const AGENT_HEADERS = ['Lead ID', 'First contact', 'Last activity', 'Source', 'Name', 'Phone', 'Email',
+  'Home', 'Bedrooms', 'Move-in', 'Status', 'Tour', 'Tour status', 'Needs staff', 'Why',
+  'Last message from prospect', 'Last agent reply', 'Texts opted out'];
+
+/** Run once: makes the shared token the agent must send. Copy it from the log into Render. */
+function setupAgentWebhook() {
+  const props = PropertiesService.getScriptProperties();
+  let token = props.getProperty('AGENT_TOKEN');
+  if (!token) {
+    token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+    props.setProperty('AGENT_TOKEN', token);
+  }
+  getAgentSheet_();
+  Logger.log('TRACKER_WEBHOOK_TOKEN for Render: ' + token);
+}
+
+function doPost(e) {
+  let data;
+  try { data = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
+  const token = PropertiesService.getScriptProperties().getProperty('AGENT_TOKEN');
+  if (!token || data.token !== token) return json_({ ok: false, error: 'unauthorized' });
+  if (data.kind !== 'agent_lead' || !data.lead || !data.lead.id) return json_({ ok: false, error: 'bad payload' });
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = getAgentSheet_();
+    const l = data.lead;
+    const row = [l.id, l.firstContact, l.lastActivity, l.source, l.name, l.phone, l.email, l.home,
+      l.bedrooms, l.moveIn, l.status, l.tour, l.tourStatus, l.needsStaff ? 'Yes' : '', l.why,
+      l.lastIn, l.lastOut, l.optedOut ? 'Yes' : ''].map(v => (v === null || v === undefined) ? '' : String(v));
+    const last = sh.getLastRow();
+    const ids = last > 1 ? sh.getRange(2, 1, last - 1, 1).getValues().map(r => String(r[0])) : [];
+    const i = ids.indexOf(String(l.id));
+    if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]);
+    else sh.appendRow(row);
+    return json_({ ok: true });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getAgentSheet_() {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  let sh = ss.getSheetByName(CONFIG.AGENT_TAB);
+  if (!sh) {
+    sh = ss.insertSheet(CONFIG.AGENT_TAB);
+    sh.appendRow(AGENT_HEADERS);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }

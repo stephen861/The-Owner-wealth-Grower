@@ -70,3 +70,9 @@ Draft campaign text, if pursued:
 Lower-risk alternative: add "Text TOUR to 614-820-5332 to see it" to the
 AffordableHousing and Zillow listing text. Renters who text first are already
 covered, with no new registration.
+
+## Tracker (Nov 16)
+
+- Tracker: FGW Leasing Tracker – Showings & Prospects, shared with fgwleasing@gmail.com as editor. SHEET_ID is filled in the script.
+- AffordableHousing leads land in a new tab, "AffordableHousing leads" (the Sarah tabs are left alone).
+- Texting agent leads: the same script has a `doPost` web app. Run `setupAgentWebhook()`, deploy as a web app (execute as Me, access Anyone), then set `TRACKER_WEBHOOK_URL` and `TRACKER_WEBHOOK_TOKEN` on Render. The agent then keeps one row per texting prospect in the "Texting agent leads" tab, updated after every text and every tour change. Off until both are set. No income, household or credit details are sent.
