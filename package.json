@@ -17,7 +17,7 @@
     "leasing:check": "tsx scripts/leasing-check.ts",
     "leasing:import": "tsx scripts/leasing-import.ts",
     "leasing:clear-demo": "tsx scripts/leasing-clear-demo.ts",
-    "start:render": "prisma db push --skip-generate && next start"
+    "start:render": "prisma db push --skip-generate && tsx scripts/leasing-import.ts data/leasing --apply && next start"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
