@@ -108,3 +108,11 @@ Per-conversation: "Take over (pause AI)" on any thread.
   confirmer a heads-up they can cancel with NO <code>.
 - Like every other text, none of these reach anyone outside
   `LEASING_TEST_NUMBERS` until `LEASING_LIVE=true`.
+
+## Prospect follow-up texts
+
+Runs on the same 5-minute timer as the tour loop. Only people who texted the leasing number first, only when our last text reached them, 9am to 8pm Columbus time, never after STOP or a staff takeover, and never while a tour is requested or booked.
+
+- Day 1, 3 and 7 after their last text: three short nudges, then it stops. A reply from them restarts the count.
+- Tour marked showed: thanks plus the application link. Marked no-show: an offer to pick another time.
+- Off switch: set `FOLLOWUPS_ENABLED=false` on Render.

@@ -5,10 +5,13 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.TOUR_TICK_DISABLED === "true") return;
   const { runTourTick } = await import("@/lib/leasing/tours");
+  const { runFollowUpTick } = await import("@/lib/leasing/followups");
   const tick = async () => {
     try {
       const r = await runTourTick();
       if (r.reminders || r.outcomeAsks || r.requests) console.info("[tours tick]", r);
+      const f = await runFollowUpTick();
+      if (f.nudges) console.info("[follow-up tick]", f);
     } catch (e) {
       console.error("[tours tick]", e);
     }

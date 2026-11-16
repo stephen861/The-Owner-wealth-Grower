@@ -14,6 +14,7 @@
 // Every text goes through sendSms, so until LEASING_LIVE="true" only the
 // numbers in LEASING_TEST_NUMBERS can receive anything.
 import { prisma } from "@/lib/prisma";
+import { followUpsEnabled, noShowText, showedText } from "./followups";
 import { sendSms, twilioRestConfigured } from "./twilio";
 import { formatInZone } from "./time";
 
@@ -151,7 +152,13 @@ export async function applyTourStatus(tourId: string, status: TourStatus): Promi
   if (status === "COMPLETED" || status === "NO_SHOW") {
     if (t.status !== "SCHEDULED") return { ok: false, note: `Tour #${t.code} is ${t.status.toLowerCase()}, not confirmed.` };
     await prisma.tour.update({ where: { id: t.id }, data: { status } });
-    return { ok: true, note: `Logged #${t.code} as ${status === "COMPLETED" ? "showed" : "no-show"}.` };
+    if (followUpsEnabled()) {
+      await messageProspect(
+        t.prospectId,
+        status === "COMPLETED" ? showedText(t.property.name, t.property.applicationUrl) : noShowText(t.property.name),
+      );
+    }
+    return { ok: true, note: `Logged #${t.code} as ${status === "COMPLETED" ? "showed" : "no-show"}. ${who(t)} got a follow-up text.` };
   }
 
   await prisma.tour.update({ where: { id: t.id }, data: { status } });
