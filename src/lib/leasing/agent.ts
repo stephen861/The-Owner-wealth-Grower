@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
 import { syncProspectToTracker } from "./tracker";
+import { syncProspectToRentManager } from "./rentmanager";
 import { leasingTools, runLeasingTool } from "./tools";
 
 const MODEL = "claude-opus-5-5";
@@ -76,6 +77,7 @@ export async function handleInbound(prospectId: string, channel: Channel, body: 
     return await handleInboundInner(prospectId, channel, body);
   } finally {
     syncProspectToTracker(prospectId); // mirror the lead into the FGW Leasing Tracker (no-op unless configured)
+    syncProspectToRentManager(prospectId); // create the prospect in Rent Manager once (test numbers only unless RM_SYNC_MODE=live)
   }
 }
 

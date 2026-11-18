@@ -266,6 +266,7 @@ model Prospect {
   lastMessageAt   DateTime?
   followUpCount   Int      @default(0) // follow-up nudges sent since their last text
   lastFollowUpAt  DateTime?
+  rmProspectId    Int?     // Rent Manager ProspectID once written there
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

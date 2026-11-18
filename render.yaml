@@ -51,3 +51,8 @@ services:
       # Leave empty and tour requests wait in the staff inbox instead.
       - key: TOUR_CONFIRMER_PHONE
         sync: false
+      # Rent Manager login for writing prospects (the "Martin AI" user). Owner types the password.
+      - key: RM_USERNAME
+        sync: false
+      - key: RM_PASSWORD
+        sync: false
