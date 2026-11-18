@@ -1,3 +1,3 @@
 name,address,city,state,timezone,program,accepts_vouchers,office_phone,office_hours,application_url,application_fee,min_income_multiple,amenities,policies
-"48 S Richardson Ave","48 S Richardson Ave","Columbus","OH","America/New_York","MARKET","yes","380-666-6592","","https://fgwi.twa.rentmanager.com/applynow",,0,"",""
-"604 Racine Ave","604 Racine Ave","Columbus","OH","America/New_York","MARKET","yes","380-666-6592","","https://fgwi.twa.rentmanager.com/applynow",,0,"",""
+"48 S Richardson Ave","48 S Richardson Ave","Columbus","OH","America/New_York","MARKET","yes","380-666-6592","","https://fgwi.twa.rentmanager.com/applynow",30,0,"","Application fee: $30 per adult."
+"604 Racine Ave","604 Racine Ave","Columbus","OH","America/New_York","MARKET","yes","380-666-6592","","https://fgwi.twa.rentmanager.com/applynow",30,0,"","Application fee: $30 per adult. Security deposit: $1,700."
