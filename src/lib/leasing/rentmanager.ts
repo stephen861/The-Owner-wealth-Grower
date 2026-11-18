@@ -77,7 +77,7 @@ function splitName(name: string | null, phone: string | null): { FirstName: stri
 let leadSourceId: number | null | undefined;
 async function findLeadSourceId(): Promise<number | null> {
   if (leadSourceId !== undefined) return leadSourceId;
-  const r = await rm(`/LeadSources?fields=LeadSourceID,Name`);
+  const r = await rm(`/LeadSources`);
   const list = Array.isArray(r.data) ? (r.data as { LeadSourceID?: number; Name?: string }[]) : [];
   const hit = list.find((s) => (s.Name ?? "").toLowerCase() === LEAD_SOURCE_NAME.toLowerCase());
   leadSourceId = hit?.LeadSourceID ?? null;
@@ -127,20 +127,32 @@ export function syncProspectToRentManager(prospectId: string): void {
   })();
 }
 
-/** Startup check: log in, then log the shape (field names only, no personal data) of Rent Manager's Prospect record. */
+/** Startup check: log in, then log the shape (field names only, no personal data) of Rent Manager's records. */
 export async function rmProbe(): Promise<void> {
   if (!process.env.RM_USERNAME || !process.env.RM_PASSWORD) return;
+  const keys = (v: unknown) => (v && typeof v === "object" ? Object.keys(v as object).join(",") : String(v));
+  const firstOf = (d: unknown) => (Array.isArray(d) ? d[0] : d);
   try {
     await authorize();
     console.info("[rentmanager probe] login ok", { base: BASE, mode: rmMode() });
-    const pr = await rm(`/Prospects?pagesize=1&embeds=PhoneNumbers`);
-    const first = Array.isArray(pr.data) ? (pr.data[0] as Record<string, unknown> | undefined) : undefined;
-    console.info("[rentmanager probe] prospects", pr.status, first ? Object.keys(first).join(",") : pr.text.slice(0, 300));
-    const phones = first?.PhoneNumbers;
-    if (Array.isArray(phones) && phones[0]) console.info("[rentmanager probe] phone fields", Object.keys(phones[0] as object).join(","));
-    const ls = await rm(`/LeadSources?fields=LeadSourceID,Name`);
-    const names = Array.isArray(ls.data) ? (ls.data as { Name?: string }[]).map((s) => s.Name).join(" | ") : ls.text.slice(0, 300);
-    console.info("[rentmanager probe] lead sources", ls.status, names);
+    for (const path of [
+      "/Prospects?pagesize=1",
+      "/Prospects?pagesize=1&embeds=Contacts",
+      "/Prospects?pagesize=1&embeds=Contacts.PhoneNumbers",
+      "/LeadSources?pagesize=1",
+    ]) {
+      const r = await rm(path);
+      const f = firstOf(r.data) as Record<string, unknown> | undefined;
+      console.info(`[rentmanager probe] ${path} -> ${r.status}`, r.status < 300 ? keys(f) : r.text.slice(0, 160).replace(/\s+/g, " "));
+      const c = f && Array.isArray(f.Contacts) ? (f.Contacts as Record<string, unknown>[])[0] : undefined;
+      if (c) {
+        console.info("[rentmanager probe]   contact fields", keys(c));
+        if (Array.isArray(c.PhoneNumbers) && c.PhoneNumbers[0]) console.info("[rentmanager probe]   phone fields", keys(c.PhoneNumbers[0]));
+      }
+    }
+    const ls = await rm(`/LeadSources`);
+    const list = Array.isArray(ls.data) ? (ls.data as Record<string, unknown>[]) : [];
+    console.info("[rentmanager probe] lead source names", list.map((s) => s.Name ?? s.Description ?? "?").join(" | "));
   } catch (err) {
     console.error("[rentmanager probe] failed", (err as Error).message);
   }
