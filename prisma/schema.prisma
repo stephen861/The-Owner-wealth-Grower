@@ -268,6 +268,7 @@ model Prospect {
   lastFollowUpAt  DateTime?
   rmProspectId    Int?     // Rent Manager ProspectID once written there
   rmSyncedName    String?  // name last sent to Rent Manager
+  rmPropertyId    Int?     // Rent Manager property the prospect is filed under
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

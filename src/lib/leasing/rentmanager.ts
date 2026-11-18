@@ -136,12 +136,21 @@ export function syncProspectToRentManager(prospectId: string): void {
       const p = await prisma.prospect.findUnique({ where: { id: prospectId }, include: { property: true } });
       if (!p || !shouldWrite(p.phone)) return;
       if (p.rmProspectId) {
-        // Already in Rent Manager: only update the name once the prospect gives it.
-        if (p.name && p.name !== p.rmSyncedName) {
-          const names = splitName(p.name, p.phone);
-          const u = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([{ ProspectID: p.rmProspectId, ...names }]) });
-          if (u.status < 300) await prisma.prospect.update({ where: { id: prospectId }, data: { rmSyncedName: p.name } });
-          else console.error("[rentmanager] name update failed", u.status, u.text.slice(0, 300));
+        // Already in Rent Manager: update the name once given, and move the prospect
+        // to the property they picked (leads with no pick start under FGW Investments).
+        const patch: Record<string, unknown> = {};
+        if (p.name && p.name !== p.rmSyncedName) Object.assign(patch, splitName(p.name, p.phone));
+        const wanted = await findPropertyId(p.property?.name).catch(() => null);
+        if (wanted && wanted !== p.rmPropertyId) patch.PropertyID = wanted;
+        if (Object.keys(patch).length) {
+          const u = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([{ ProspectID: p.rmProspectId, ...patch }]) });
+          if (u.status < 300) {
+            await prisma.prospect.update({
+              where: { id: prospectId },
+              data: { ...(patch.FirstName ? { rmSyncedName: p.name } : {}), ...(patch.PropertyID ? { rmPropertyId: wanted } : {}) },
+            });
+            console.info("[rentmanager] prospect updated", { rmProspectId: p.rmProspectId, name: Boolean(patch.FirstName), moved: Boolean(patch.PropertyID) });
+          } else console.error("[rentmanager] prospect update failed", u.status, u.text.slice(0, 300));
         }
         return;
       }
@@ -171,7 +180,7 @@ export function syncProspectToRentManager(prospectId: string): void {
       }
       const created = Array.isArray(r.data) ? (r.data[0] as { ProspectID?: number }) : (r.data as { ProspectID?: number });
       const id = created?.ProspectID;
-      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id, rmSyncedName: p.name ?? null } });
+      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id, rmSyncedName: p.name ?? null, rmPropertyId: propertyId ?? null } });
       console.info("[rentmanager] prospect created", { rmProspectId: id ?? null, leadSource: ls ? LEAD_SOURCE_NAME : "none" });
     } catch (err) {
       console.error("[rentmanager] sync error", (err as Error).message);
