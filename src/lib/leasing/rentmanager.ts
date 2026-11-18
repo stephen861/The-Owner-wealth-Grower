@@ -5,8 +5,8 @@
  * only in Render (RM_USERNAME / RM_PASSWORD) and are never logged.
  *
  * Off unless RM_USERNAME and RM_PASSWORD are set.
- * RM_SYNC_MODE: "test" (default) writes only numbers in LEASING_TEST_NUMBERS;
- *               "live" writes every texting prospect; "off" writes nothing.
+ * RM_SYNC_MODE: "live" (default; the owner said yes on Nov 18, 2026) writes every texting prospect;
+ *               "test" writes only numbers in LEASING_TEST_NUMBERS; "off" writes nothing.
  * Never blocks or breaks a reply: failures are logged and dropped.
  * No income, household, voucher or credit details are sent (no-screening rule).
  */
@@ -21,8 +21,8 @@ export function rmEnabled(): boolean {
 }
 
 function rmMode(): "test" | "live" | "off" {
-  const m = (process.env.RM_SYNC_MODE || "test").toLowerCase();
-  return m === "live" ? "live" : m === "off" ? "off" : "test";
+  const m = (process.env.RM_SYNC_MODE || "live").toLowerCase();
+  return m === "test" ? "test" : m === "off" ? "off" : "live";
 }
 
 let token: string | null = null;
@@ -126,7 +126,7 @@ function shouldWrite(phone: string | null): boolean {
   return Boolean(clean) && testNumbers().includes(clean);
 }
 
-/** Fire-and-forget: create this prospect in Rent Manager once (test numbers only unless RM_SYNC_MODE=live). */
+/** Fire-and-forget: create this prospect in Rent Manager once (every texting lead unless RM_SYNC_MODE=test or off). */
 const inFlight = new Set<string>();
 export function syncProspectToRentManager(prospectId: string): void {
   if (inFlight.has(prospectId)) return; // a write for this prospect is already running

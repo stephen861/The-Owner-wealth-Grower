@@ -77,7 +77,7 @@ export async function handleInbound(prospectId: string, channel: Channel, body: 
     return await handleInboundInner(prospectId, channel, body);
   } finally {
     syncProspectToTracker(prospectId); // mirror the lead into the FGW Leasing Tracker (no-op unless configured)
-    syncProspectToRentManager(prospectId); // create the prospect in Rent Manager once (test numbers only unless RM_SYNC_MODE=live)
+    syncProspectToRentManager(prospectId); // create the prospect in Rent Manager once (every texting lead; RM_SYNC_MODE=test or off to limit)
   }
 }
 
