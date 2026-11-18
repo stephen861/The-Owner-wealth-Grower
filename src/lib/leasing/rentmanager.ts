@@ -95,17 +95,27 @@ async function findCellPhoneTypeId(): Promise<number | null> {
 }
 
 let properties: { PropertyID: number; Name: string }[] | undefined;
-/** Match our listing (e.g. "604 Racine") to a Rent Manager property by street number and first street word. */
-async function findPropertyId(name: string | null | undefined): Promise<number | null> {
-  if (!name) return null;
+async function loadProperties(): Promise<{ PropertyID: number; Name: string }[]> {
   if (!properties) {
     const r = await rm(`/Properties?fields=PropertyID,Name`);
     properties = Array.isArray(r.data) ? (r.data as { PropertyID: number; Name: string }[]) : [];
   }
+  return properties;
+}
+/** Rent Manager needs a property on every prospect; leads with no listing chosen go under "FGW Investments". */
+async function findDefaultPropertyId(): Promise<number | null> {
+  if (process.env.RM_DEFAULT_PROPERTY_ID) return Number(process.env.RM_DEFAULT_PROPERTY_ID);
+  const hit = (await loadProperties()).find((p) => /fgw investments/i.test(p.Name));
+  return hit?.PropertyID ?? null;
+}
+/** Match our listing (e.g. "604 Racine") to a Rent Manager property by street number and first street word. */
+async function findPropertyId(name: string | null | undefined): Promise<number | null> {
+  if (!name) return null;
+  const list = await loadProperties();
   const m = name.match(/^(\d+)\s+(?:[NSEW]\.?\s+)?(\w+)/i);
   if (!m) return null;
   const [, num, street] = m;
-  const hit = properties.find((p) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(p.Name) && p.Name.toLowerCase().includes(street.toLowerCase()));
+  const hit = list.find((p) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(p.Name) && p.Name.toLowerCase().includes(street.toLowerCase()));
   return hit?.PropertyID ?? null;
 }
 
@@ -125,7 +135,16 @@ export function syncProspectToRentManager(prospectId: string): void {
     try {
       const p = await prisma.prospect.findUnique({ where: { id: prospectId }, include: { property: true } });
       if (!p || !shouldWrite(p.phone)) return;
-      if (p.rmProspectId) return; // already in Rent Manager
+      if (p.rmProspectId) {
+        // Already in Rent Manager: only update the name once the prospect gives it.
+        if (p.name && p.name !== p.rmSyncedName) {
+          const names = splitName(p.name, p.phone);
+          const u = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([{ ProspectID: p.rmProspectId, ...names }]) });
+          if (u.status < 300) await prisma.prospect.update({ where: { id: prospectId }, data: { rmSyncedName: p.name } });
+          else console.error("[rentmanager] name update failed", u.status, u.text.slice(0, 300));
+        }
+        return;
+      }
       const ls = await findLeadSourceId().catch(() => null);
       const comment = [
         `Texting leasing agent lead (${p.source ?? "SMS"}).`,
@@ -136,7 +155,7 @@ export function syncProspectToRentManager(prospectId: string): void {
       const names = splitName(p.name, p.phone);
       const [cell, propertyId] = await Promise.all([
         findCellPhoneTypeId().catch(() => null),
-        findPropertyId(p.property?.name).catch(() => null),
+        findPropertyId(p.property?.name).then((id) => id ?? findDefaultPropertyId()).catch(() => null),
       ]);
       const phone: Record<string, unknown> = { PhoneNumber: (p.phone ?? "").replace(/^\+1/, "").replace(/\D/g, ""), IsPrimary: true };
       if (cell) phone.PhoneNumberTypeID = cell;
@@ -152,7 +171,7 @@ export function syncProspectToRentManager(prospectId: string): void {
       }
       const created = Array.isArray(r.data) ? (r.data[0] as { ProspectID?: number }) : (r.data as { ProspectID?: number });
       const id = created?.ProspectID;
-      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id } });
+      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id, rmSyncedName: p.name ?? null } });
       console.info("[rentmanager] prospect created", { rmProspectId: id ?? null, leadSource: ls ? LEAD_SOURCE_NAME : "none" });
     } catch (err) {
       console.error("[rentmanager] sync error", (err as Error).message);
@@ -190,9 +209,8 @@ export async function rmProbe(): Promise<void> {
       cellType: await findCellPhoneTypeId().catch((e) => `err ${(e as Error).message}`),
       racine: await findPropertyId("604 Racine").catch((e) => `err ${(e as Error).message}`),
       richardson: await findPropertyId("48 S Richardson").catch((e) => `err ${(e as Error).message}`),
+      fallback: await findDefaultPropertyId().catch((e) => `err ${(e as Error).message}`),
     });
-    const pt = await rm(`/PhoneNumberTypes`);
-    console.info("[rentmanager probe] phone types", pt.status, Array.isArray(pt.data) ? (pt.data as Record<string, unknown>[]).map((t) => `${t.PhoneNumberTypeID}:${t.Name ?? t.Description}`).join(" | ") : pt.text.slice(0, 160));
     await backfillTestProspects();
   } catch (err) {
     console.error("[rentmanager probe] failed", (err as Error).message);
