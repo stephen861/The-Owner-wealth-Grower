@@ -53,8 +53,9 @@ async function main() {
     if (!(await known(r.property_name))) err("units.csv", line, `unknown property "${r.property_name}"`);
     if (!r.unit_number) err("units.csv", line, "unit_number is required");
     if (!/^\d+$/.test(r.bedrooms)) err("units.csv", line, "bedrooms must be a whole number");
-    const rent = money(r.rent);
-    if (rent == null || !Number.isFinite(rent) || rent <= 0) err("units.csv", line, "rent must be a positive number");
+    // Blank rent = price not set yet; the agent says the team will confirm it.
+    const rent = r.rent?.trim() ? money(r.rent) : 0;
+    if (rent == null || !Number.isFinite(rent) || rent < 0 || (r.rent?.trim() && rent === 0)) err("units.csv", line, "rent must be a positive number, or blank if not set yet");
     if (r.ami_percent && !/^\d+$/.test(r.ami_percent)) err("units.csv", line, "ami_percent must be a number (0 = market rate)");
     if (r.status && !UNIT_STATUSES.includes(r.status.toUpperCase())) err("units.csv", line, `status must be one of ${UNIT_STATUSES.join(", ")}`);
     if (r.available_date && Number.isNaN(Date.parse(r.available_date))) err("units.csv", line, "available_date must be YYYY-MM-DD");
@@ -116,7 +117,7 @@ async function main() {
       bedrooms: Number(r.bedrooms),
       bathrooms: money(r.bathrooms ?? "") ?? 1,
       sqft: money(r.sqft ?? ""),
-      rent: money(r.rent)!,
+      rent: r.rent?.trim() ? money(r.rent)! : 0,
       amiPercent: r.ami_percent === "" ? 60 : Number(r.ami_percent),
       accessible: yes(r.accessible ?? ""),
       status: (r.status || "AVAILABLE").toUpperCase(),

@@ -54,7 +54,7 @@ export default async function PropertiesPage() {
                     <tr key={u.id}>
                       <td>{u.unitNumber}{u.accessible ? " ♿" : ""}</td>
                       <td>{u.bedrooms}BR / {u.bathrooms}BA{u.sqft ? ` · ${u.sqft} sf` : ""}</td>
-                      <td className="right">{formatCurrency(u.rent)}</td>
+                      <td className="right">{u.rent > 0 ? formatCurrency(u.rent) : "Not set"}</td>
                       <td>{u.amiPercent ? `${u.amiPercent}%` : "Market"}</td>
                       <td>{u.availableDate ? formatDate(u.availableDate) : "Now"}</td>
                       <td>
