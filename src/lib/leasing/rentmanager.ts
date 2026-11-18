@@ -142,7 +142,7 @@ export function syncProspectToRentManager(prospectId: string): void {
       if (cell) phone.PhoneNumberTypeID = cell;
       const contact: Record<string, unknown> = { ...names, IsPrimary: true, PhoneNumbers: p.phone ? [phone] : [] };
       if (p.email) contact.Email = p.email;
-      const prospect: Record<string, unknown> = { ...names, Comment: comment, Contacts: [contact] };
+      const prospect: Record<string, unknown> = { ...names, Comment: comment, PrimaryContact: contact };
       if (ls) prospect.LeadSourceID = ls;
       if (propertyId) prospect.PropertyID = propertyId;
       const r = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([prospect]) });
@@ -191,6 +191,8 @@ export async function rmProbe(): Promise<void> {
       racine: await findPropertyId("604 Racine").catch((e) => `err ${(e as Error).message}`),
       richardson: await findPropertyId("48 S Richardson").catch((e) => `err ${(e as Error).message}`),
     });
+    const pt = await rm(`/PhoneNumberTypes`);
+    console.info("[rentmanager probe] phone types", pt.status, Array.isArray(pt.data) ? (pt.data as Record<string, unknown>[]).map((t) => `${t.PhoneNumberTypeID}:${t.Name ?? t.Description}`).join(" | ") : pt.text.slice(0, 160));
     await backfillTestProspects();
   } catch (err) {
     console.error("[rentmanager probe] failed", (err as Error).message);
