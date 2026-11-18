@@ -78,10 +78,35 @@ let leadSourceId: number | null | undefined;
 async function findLeadSourceId(): Promise<number | null> {
   if (leadSourceId !== undefined) return leadSourceId;
   const r = await rm(`/LeadSources`);
-  const list = Array.isArray(r.data) ? (r.data as { LeadSourceID?: number; Name?: string }[]) : [];
-  const hit = list.find((s) => (s.Name ?? "").toLowerCase() === LEAD_SOURCE_NAME.toLowerCase());
-  leadSourceId = hit?.LeadSourceID ?? null;
+  const list = Array.isArray(r.data) ? (r.data as { ProspectLeadSourceID?: number; Description?: string }[]) : [];
+  const hit = list.find((s) => (s.Description ?? "").trim().toLowerCase() === LEAD_SOURCE_NAME.toLowerCase());
+  leadSourceId = hit?.ProspectLeadSourceID ?? null;
   return leadSourceId;
+}
+
+let cellTypeId: number | null | undefined;
+async function findCellPhoneTypeId(): Promise<number | null> {
+  if (cellTypeId !== undefined) return cellTypeId;
+  const r = await rm(`/PhoneNumberTypes`);
+  const list = Array.isArray(r.data) ? (r.data as Record<string, unknown>[]) : [];
+  const hit = list.find((t) => /cell|mobile/i.test(String(t.Name ?? t.Description ?? "")));
+  cellTypeId = (hit?.PhoneNumberTypeID as number | undefined) ?? null;
+  return cellTypeId;
+}
+
+let properties: { PropertyID: number; Name: string }[] | undefined;
+/** Match our listing (e.g. "604 Racine") to a Rent Manager property by street number and first street word. */
+async function findPropertyId(name: string | null | undefined): Promise<number | null> {
+  if (!name) return null;
+  if (!properties) {
+    const r = await rm(`/Properties?fields=PropertyID,Name`);
+    properties = Array.isArray(r.data) ? (r.data as { PropertyID: number; Name: string }[]) : [];
+  }
+  const m = name.match(/^(\d+)\s+(?:[NSEW]\.?\s+)?(\w+)/i);
+  if (!m) return null;
+  const [, num, street] = m;
+  const hit = properties.find((p) => new RegExp(`(^|\\D)${num}(\\D|$)`).test(p.Name) && p.Name.toLowerCase().includes(street.toLowerCase()));
+  return hit?.PropertyID ?? null;
 }
 
 function shouldWrite(phone: string | null): boolean {
@@ -92,7 +117,10 @@ function shouldWrite(phone: string | null): boolean {
 }
 
 /** Fire-and-forget: create this prospect in Rent Manager once (test numbers only unless RM_SYNC_MODE=live). */
+const inFlight = new Set<string>();
 export function syncProspectToRentManager(prospectId: string): void {
+  if (inFlight.has(prospectId)) return; // a write for this prospect is already running
+  inFlight.add(prospectId);
   void (async () => {
     try {
       const p = await prisma.prospect.findUnique({ where: { id: prospectId }, include: { property: true } });
@@ -105,13 +133,18 @@ export function syncProspectToRentManager(prospectId: string): void {
         p.bedroomsWanted ? `Bedrooms: ${p.bedroomsWanted}.` : "",
         p.moveInDate ? `Move-in: ${p.moveInDate.toISOString().slice(0, 10)}.` : "",
       ].filter(Boolean).join(" ");
-      const prospect: Record<string, unknown> = {
-        ...splitName(p.name, p.phone),
-        Comment: comment,
-        PhoneNumbers: p.phone ? [{ PhoneNumber: p.phone.replace(/^\+1/, ""), IsPrimary: true }] : [],
-      };
-      if (p.email) prospect.Email = p.email;
+      const names = splitName(p.name, p.phone);
+      const [cell, propertyId] = await Promise.all([
+        findCellPhoneTypeId().catch(() => null),
+        findPropertyId(p.property?.name).catch(() => null),
+      ]);
+      const phone: Record<string, unknown> = { PhoneNumber: (p.phone ?? "").replace(/^\+1/, "").replace(/\D/g, ""), IsPrimary: true };
+      if (cell) phone.PhoneNumberTypeID = cell;
+      const contact: Record<string, unknown> = { ...names, IsPrimary: true, PhoneNumbers: p.phone ? [phone] : [] };
+      if (p.email) contact.Email = p.email;
+      const prospect: Record<string, unknown> = { ...names, Comment: comment, Contacts: [contact] };
       if (ls) prospect.LeadSourceID = ls;
+      if (propertyId) prospect.PropertyID = propertyId;
       const r = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([prospect]) });
       if (r.status >= 300) {
         console.error("[rentmanager] create prospect failed", r.status, r.text.slice(0, 500));
@@ -123,6 +156,8 @@ export function syncProspectToRentManager(prospectId: string): void {
       console.info("[rentmanager] prospect created", { rmProspectId: id ?? null, leadSource: ls ? LEAD_SOURCE_NAME : "none" });
     } catch (err) {
       console.error("[rentmanager] sync error", (err as Error).message);
+    } finally {
+      inFlight.delete(prospectId);
     }
   })();
 }
@@ -150,10 +185,29 @@ export async function rmProbe(): Promise<void> {
         if (Array.isArray(c.PhoneNumbers) && c.PhoneNumbers[0]) console.info("[rentmanager probe]   phone fields", keys(c.PhoneNumbers[0]));
       }
     }
-    const ls = await rm(`/LeadSources`);
-    const list = Array.isArray(ls.data) ? (ls.data as Record<string, unknown>[]) : [];
-    console.info("[rentmanager probe] lead source names", list.map((s) => s.Name ?? s.Description ?? "?").join(" | "));
+    console.info("[rentmanager probe] lookups", {
+      leadSource: await findLeadSourceId().catch((e) => `err ${(e as Error).message}`),
+      cellType: await findCellPhoneTypeId().catch((e) => `err ${(e as Error).message}`),
+      racine: await findPropertyId("604 Racine").catch((e) => `err ${(e as Error).message}`),
+      richardson: await findPropertyId("48 S Richardson").catch((e) => `err ${(e as Error).message}`),
+    });
+    await backfillTestProspects();
   } catch (err) {
     console.error("[rentmanager probe] failed", (err as Error).message);
   }
+}
+
+/** Test mode only: write up to 3 existing test-number prospects that are not in Rent Manager yet. */
+async function backfillTestProspects(): Promise<void> {
+  if (rmMode() !== "test") return;
+  const nums = testNumbers();
+  if (!nums.length) { console.info("[rentmanager] no test numbers set; nothing to backfill"); return; }
+  const rows = await prisma.prospect.findMany({
+    where: { phone: { in: nums }, rmProspectId: null },
+    orderBy: { updatedAt: "desc" },
+    take: 3,
+    select: { id: true },
+  });
+  console.info("[rentmanager] test prospects to write", rows.length);
+  for (const r of rows) syncProspectToRentManager(r.id);
 }
