@@ -1,3 +1,4 @@
 property_name,unit_number,bedrooms,bathrooms,sqft,rent,ami_percent,accessible,status,available_date,tour_video_url
 "48 S Richardson Ave","48",2,1,,1400,0,no,AVAILABLE,,
-"604 Racine Ave","604",3,1,,1700,0,no,AVAILABLE,,
+"604 Racine Ave","604",3,1,,1700,0,no,AVAILABLE,2027-01-02,
+"246 S Highland Ave","246",2,1,,1400,0,no,AVAILABLE,2027-02-15,
