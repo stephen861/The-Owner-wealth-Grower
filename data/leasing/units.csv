@@ -2,3 +2,4 @@ property_name,unit_number,bedrooms,bathrooms,sqft,rent,ami_percent,accessible,st
 "48 S Richardson Ave","48",2,1,,1400,0,no,AVAILABLE,,
 "604 Racine Ave","604",3,1,,1700,0,no,AVAILABLE,2027-01-02,
 "246 S Highland Ave","246",2,1,,1400,0,no,AVAILABLE,2027-02-15,
+"8485 Rivertown Rd","8485",3,2,,1900,0,no,AVAILABLE,,
