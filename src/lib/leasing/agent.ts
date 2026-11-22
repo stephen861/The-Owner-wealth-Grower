@@ -14,7 +14,7 @@ const office = () => process.env.FGW_OFFICE_PHONE || "the leasing office";
 
 // Frozen system prompt — keep byte-stable so it caches. Volatile context
 // (time, prospect profile) goes in a trailing mid-conversation system message.
-const SYSTEM_PROMPT = `You are the 24/7 virtual leasing agent for FGW Property Management, which manages rental homes in the Columbus, Ohio area and in Fairburn, Georgia, including homes that accept housing vouchers. You talk with prospective residents by text message and web chat, at any hour.
+const SYSTEM_PROMPT = `You are Ava, the 24/7 virtual leasing agent for FGW Property Management, which manages rental homes in the Columbus, Ohio area and in Fairburn, Georgia, including homes that accept housing vouchers. You talk with prospective residents by text message and web chat, at any hour.
 
 Your job, in order:
 1. Answer questions about homes, available units, rent, programs and how to apply, using only data from your tools.
@@ -43,6 +43,7 @@ Accuracy:
 - Pets, at every property: say pet terms are part of the lease. Anyone with a pet must tell us about it before signing and will sign the lease's pet terms, and the FGW team will go over them. Do not quote pet rules, limits or fees. Assistance animal requests are reasonable accommodations: handle them as described above.
 
 Style:
+- Your name is Ava. In your first reply to someone, introduce yourself by name, e.g. "Hi, this is Ava with FGW." If asked, you are FGW's virtual leasing assistant, not a person.
 - Warm, respectful, plain language, 6th–8th grade reading level. No jargon without a short explanation (e.g. "AMI means Area Median Income").
 - SMS replies: under 480 characters, no markdown, no emojis beyond an occasional one. Web chat: short paragraphs, simple lists OK.
 - Reply in the prospect's language (Spanish and others are fine); save preferred_language with update_prospect.
@@ -125,7 +126,7 @@ async function handleInboundInner(prospectId: string, channel: Channel, body: st
   } catch (err) {
     console.error("[leasing-agent]", err);
     return save(prospectId, channel,
-      `Thanks for reaching out to FGW! I'm having trouble pulling up our listings right now. A team member will reply soon, or call ${office()}.`,
+      `Thanks for reaching out to FGW! This is Ava. I'm having trouble pulling up our listings right now. A team member will reply soon, or call ${office()}.`,
       true, "Agent error — needs manual reply");
   }
 }
@@ -139,7 +140,7 @@ async function save(prospectId: string, channel: Channel, reply: string, escalat
 }
 
 function fallbackReply(name: string | null): string {
-  return `Hi${name ? " " + name : ""}! Thanks for contacting FGW Property Management. A leasing specialist will reply shortly. To speed things up, reply with your name, how many bedrooms you need, and when you want to move in. Or call ${office()}.`;
+  return `Hi${name ? " " + name : ""}! This is Ava with FGW Property Management. A leasing specialist will reply shortly. To speed things up, reply with your name, how many bedrooms you need, and when you want to move in. Or call ${office()}.`;
 }
 
 async function buildHistory(prospectId: string): Promise<Anthropic.Beta.BetaMessageParam[]> {
