@@ -30,6 +30,19 @@ function firstName(name: string | null): string {
   return n && !/^test$/i.test(n) ? ` ${n}` : "";
 }
 
+/** Names a list like "A or B". */
+function orList(xs: string[]): string {
+  return xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`;
+}
+
+/** Nudge for a lead whose home has been rented: say so and point to open homes nearby. */
+export function rentedNudgeText(n: number, name: string | null, home: string, others: string[]): string {
+  const open = others.length ? `${orList(others)} ${others.length > 1 ? "are" : "is"} open` : "we have other homes open";
+  if (n === 0) return `Hi${firstName(name)}, it's FGW. ${home} has been rented, but ${open}. Want to see one?`;
+  if (n === 1) return `Quick check-in from FGW: ${home} is rented, but ${open}. Want a tour this week?`;
+  return `Last note from FGW: ${home} is rented, but ${open}. Reply anytime to tour or apply.`;
+}
+
 export function nudgeText(n: number, name: string | null, home: string | null): string {
   const h = home ?? "one of our homes";
   if (n === 0) return `Hi${firstName(name)}, it's FGW. Still interested in ${h}? I can set up a tour or send the application link.`;
@@ -50,7 +63,7 @@ export async function runFollowUpTick(now = new Date()): Promise<{ nudges: numbe
       messages: { some: { direction: "IN", channel: "SMS" } },
     },
     include: {
-      property: true,
+      property: { include: { units: { where: { status: "AVAILABLE" }, select: { id: true } } } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
       tours: { where: { status: { in: ["REQUESTED", "SCHEDULED"] } }, take: 1 },
     },
@@ -79,7 +92,19 @@ export async function runFollowUpTick(now = new Date()): Promise<{ nudges: numbe
       data: { followUpCount: count + 1, lastFollowUpAt: now },
     });
     if (!claimed.count) continue;
-    await messageProspect(p.id, nudgeText(count, p.name, p.property?.name ?? null));
+    const prop = p.property;
+    if (prop && prop.units.length === 0) {
+      // Their home was rented: never ask if they still want it. Offer open homes in the same state.
+      const open = await prisma.property.findMany({
+        where: { active: true, state: prop.state, id: { not: prop.id }, units: { some: { status: "AVAILABLE" } } },
+        select: { name: true },
+        orderBy: { name: "asc" },
+        take: 3,
+      });
+      await messageProspect(p.id, rentedNudgeText(count, p.name, prop.name, open.map((o) => o.name)));
+    } else {
+      await messageProspect(p.id, nudgeText(count, p.name, prop?.name ?? null));
+    }
     nudges++;
   }
   return { nudges };

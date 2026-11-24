@@ -41,7 +41,6 @@ const CONFIG = {
   // lead email ("... is interested in 48 S Richardson Ave, Valleyview.").
   // 1188 Sidney must never be added.
   HOMES: {
-    '48 S Richardson Ave': '2 bedrooms, 1 bath, $1,400 a month, available now',
   },
 };
 

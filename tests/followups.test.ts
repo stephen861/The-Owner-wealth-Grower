@@ -36,7 +36,8 @@ before(async () => {
   execSync("npx prisma db push --skip-generate", { env: process.env, stdio: "ignore" });
   prisma = (await import("../src/lib/prisma")).prisma;
   fu = await import("../src/lib/leasing/followups");
-  propertyId = (await prisma.property.create({ data: { name: "48 S Richardson Ave", program: "MARKET" } })).id;
+  propertyId = (await prisma.property.create({ data: { name: "48 S Richardson Ave", program: "MARKET", state: "OH" } })).id;
+  await prisma.unit.create({ data: { propertyId, unitNumber: "48", bedrooms: 2, rent: 1400 } });
 });
 after(async () => {
   await prisma?.$disconnect();
@@ -107,4 +108,18 @@ test("FOLLOWUPS_ENABLED=false turns it off", async () => {
   } finally {
     delete process.env.FOLLOWUPS_ENABLED;
   }
+});
+
+test("a rented home: nudge says so and offers open homes in the same state", async () => {
+  const rented = await prisma.property.create({ data: { name: "9 Rented St", program: "MARKET", state: "OH" } });
+  await prisma.unit.create({ data: { propertyId: rented.id, unitNumber: "9", bedrooms: 2, rent: 1400, status: "LEASED" } });
+  const ga = await prisma.property.create({ data: { name: "1 Georgia Rd", program: "MARKET", state: "GA" } });
+  await prisma.unit.create({ data: { propertyId: ga.id, unitNumber: "1", bedrooms: 3, rent: 1900 } });
+  const p = await lead("+16145550211", { name: "Lee Park" });
+  await prisma.prospect.update({ where: { id: p.id }, data: { propertyId: rented.id } });
+  sent.length = 0;
+  await fu.runFollowUpTick(at(1));
+  const mine = sent.filter((s) => s.to === "+16145550211");
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].body, "Hi Lee, it's FGW. 9 Rented St has been rented, but 48 S Richardson Ave is open. Want to see one?");
 });
