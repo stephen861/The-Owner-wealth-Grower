@@ -41,6 +41,10 @@ const CONFIG = {
   // lead email ("... is interested in 48 S Richardson Ave, Valleyview.").
   // 1188 Sidney must never be added.
   HOMES: {
+    '604 Racine Ave': '3 bedrooms, 1 bath, $1,700 a month with a $1,700 deposit, available January 2',
+    '246 S Highland Ave': '2 bedrooms, 1 bath, $1,400 a month, available February 15',
+    '246 S Highland Ave, Unit #246': '2 bedrooms, 1 bath, $1,400 a month, available February 15',
+    '8485 Rivertown Rd': '3 bedrooms, 2 baths, $1,900 a month, available now',
   },
 };
 
