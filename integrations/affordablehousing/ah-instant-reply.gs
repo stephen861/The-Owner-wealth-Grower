@@ -186,6 +186,7 @@ function doPost(e) {
   try { data = JSON.parse(e.postData.contents); } catch (err) { return json_({ ok: false, error: 'bad json' }); }
   const token = PropertiesService.getScriptProperties().getProperty('AGENT_TOKEN');
   if (!token || data.token !== token) return json_({ ok: false, error: 'unauthorized' });
+  if (data.kind === 'move_dates') return writeMoveDates_(data);
   if (data.kind !== 'agent_lead' || !data.lead || !data.lead.id) return json_({ ok: false, error: 'bad payload' });
 
   const lock = LockService.getScriptLock();
@@ -202,6 +203,29 @@ function doPost(e) {
     if (i >= 0) sh.getRange(i + 2, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
     return json_({ ok: true });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Daily Rent Manager move-in / move-out dates from the leasing agent. The tab is
+// rewritten each day; it holds type, date, tenant, property, unit and lease id only.
+const MOVE_TAB = 'RM Move Dates';
+const MOVE_HEADERS = ['Type', 'Date', 'Tenant', 'Property', 'Unit', 'Lease ID', 'Read at'];
+function writeMoveDates_(data) {
+  if (!Array.isArray(data.rows)) return json_({ ok: false, error: 'bad payload' });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+    const sh = ss.getSheetByName(MOVE_TAB) || ss.insertSheet(MOVE_TAB);
+    sh.clearContents();
+    const rows = data.rows.map(r => [r.type, r.date, r.tenant, r.property, r.unit, r.leaseId, data.readAt]
+      .map(v => (v === null || v === undefined) ? '' : String(v)));
+    sh.getRange(1, 1, 1, MOVE_HEADERS.length).setValues([MOVE_HEADERS]);
+    sh.setFrozenRows(1);
+    if (rows.length) sh.getRange(2, 1, rows.length, MOVE_HEADERS.length).setValues(rows);
+    return json_({ ok: true, rows: rows.length });
   } finally {
     lock.releaseLock();
   }

@@ -7,12 +7,14 @@ export async function register() {
   if (process.env.TOUR_TICK_DISABLED === "true") return;
   const { runTourTick } = await import("@/lib/leasing/tours");
   const { runFollowUpTick } = await import("@/lib/leasing/followups");
+  const { runMoveDatesTick } = await import("@/lib/leasing/movedates");
   const tick = async () => {
     try {
       const r = await runTourTick();
       if (r.reminders || r.outcomeAsks || r.requests) console.info("[tours tick]", r);
       const f = await runFollowUpTick();
       if (f.nudges) console.info("[follow-up tick]", f);
+      await runMoveDatesTick(); // once a day after 6 AM Eastern
     } catch (e) {
       console.error("[tours tick]", e);
     }
