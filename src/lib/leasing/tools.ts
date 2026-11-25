@@ -210,7 +210,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         saved: true,
         still_missing: missing,
         instruction:
-          "Do NOT tell the prospect whether they qualify, are eligible, are over or under any limit, or fit a unit size. Thank them, say the FGW team reviews every household and will follow up, ask for anything still missing, and keep helping with tours and the application link.",
+          "Do NOT tell the prospect whether they qualify, are eligible, are over or under any limit, or fit a unit size. Thank them, say the FGW team reviews every household and will follow up, ask for anything still missing, and send the application link (tours come after the FGW team approves the application).",
       });
     }
 

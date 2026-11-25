@@ -19,7 +19,7 @@ test("agent instructions forbid qualifying or gating", () => {
   const agent = readFileSync(new URL("../src/lib/leasing/agent.ts", import.meta.url), "utf8");
   assert.doesNotMatch(agent, /pre-?qualified, subject|prescreen_eligibility|2 per bedroom/i);
   assert.match(agent, /You never decide who qualifies/);
-  assert.match(agent, /Anyone who asks may tour and may apply/);
+  assert.match(agent, /Every lead gets the same steps: the application first/);
 });
 test("intake lists what is missing for staff", () => {
   assert.equal(missingIntakeItems({}).length, 7);
@@ -75,7 +75,11 @@ test("tours are requests the FGW team confirms, never booked by the agent", () =
   const tours = readFileSync(new URL("../src/lib/leasing/tours.ts", import.meta.url), "utf8");
   assert.match(tours, /TOUR_BOOKING_MODE === "auto" \? "auto" : "confirm"/);
   assert.match(tools, /confirmed: false/);
-  assert.match(agent, /Never say a tour is booked, scheduled or confirmed/);
+  // Application first: Ava never takes a tour request; the team schedules after approval.
+  assert.match(agent, /application first/);
+  assert.match(agent, /Never offer, request, book or promise a tour/);
+  assert.match(agent, /AVA_TOOLS = leasingTools\.filter\(\(t\) => t\.name !== "request_tour"\)/);
+  assert.match(agent, /tools: AVA_TOOLS/);
   const chat = readFileSync(new URL("../src/app/chat/ChatWidget.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(chat, /qualify|book a tour/i);
 });

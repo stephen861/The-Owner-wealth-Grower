@@ -38,16 +38,16 @@ function orList(xs: string[]): string {
 /** Nudge for a lead whose home has been rented: say so and point to open homes nearby. */
 export function rentedNudgeText(n: number, name: string | null, home: string, others: string[]): string {
   const open = others.length ? `${orList(others)} ${others.length > 1 ? "are" : "is"} open` : "we have other homes open";
-  if (n === 0) return `Hi${firstName(name)}, it's FGW. ${home} has been rented, but ${open}. Want to see one?`;
-  if (n === 1) return `Quick check-in from FGW: ${home} is rented, but ${open}. Want a tour this week?`;
-  return `Last note from FGW: ${home} is rented, but ${open}. Reply anytime to tour or apply.`;
+  if (n === 0) return `Hi${firstName(name)}, it's FGW. ${home} has been rented, but ${open}. Want the application link?`;
+  if (n === 1) return `Quick check-in from FGW: ${home} is rented, but ${open}. Reply for the application link. Tours come after approval.`;
+  return `Last note from FGW: ${home} is rented, but ${open}. Reply anytime for the application link.`;
 }
 
 export function nudgeText(n: number, name: string | null, home: string | null): string {
   const h = home ?? "one of our homes";
-  if (n === 0) return `Hi${firstName(name)}, it's FGW. Still interested in ${h}? I can set up a tour or send the application link.`;
-  if (n === 1) return `Quick check-in from FGW: ${h} is still available. Want to see it this week?`;
-  return `Last note from FGW about ${h}. Reply anytime if you'd like to tour or apply.`;
+  if (n === 0) return `Hi${firstName(name)}, it's FGW. Still interested in ${h}? I can send the application link. Tours are set up once it's approved.`;
+  if (n === 1) return `Quick check-in from FGW: ${h} is still available. Want the application link? Tours come after approval.`;
+  return `Last note from FGW about ${h}. Reply anytime if you'd like the application link.`;
 }
 
 export async function runFollowUpTick(now = new Date()): Promise<{ nudges: number }> {

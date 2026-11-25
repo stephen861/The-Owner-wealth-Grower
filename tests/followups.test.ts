@@ -121,5 +121,5 @@ test("a rented home: nudge says so and offers open homes in the same state", asy
   await fu.runFollowUpTick(at(1));
   const mine = sent.filter((s) => s.to === "+16145550211");
   assert.equal(mine.length, 1);
-  assert.equal(mine[0].body, "Hi Lee, it's FGW. 9 Rented St has been rented, but 48 S Richardson Ave is open. Want to see one?");
+  assert.equal(mine[0].body, "Hi Lee, it's FGW. 9 Rented St has been rented, but 48 S Richardson Ave is open. Want the application link?");
 });
