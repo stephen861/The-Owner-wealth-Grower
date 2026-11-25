@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { AGENT_STATUSES, missingIntakeItems, staffReviewNote } from "./intake";
 import { formatInZone, parseWallTime, zonedToUtc } from "./time";
 import { newTourCode, notifyTourRequested, tourBookingMode } from "./tours";
+import { evaluatePrescreen } from "./prescreen";
 
 export const PROSPECT_STATUSES = [
   "NEW",
@@ -84,6 +85,24 @@ export const leasingTools: Anthropic.Beta.BetaTool[] = [
         tour_type: { type: "string", enum: ["IN_PERSON"], description: "Only in-person tours are offered for now." },
       },
       required: ["property_id", "datetime", "tour_type"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "record_voucher_prescreen",
+    description:
+      "REQUIRED before you send the application link. Save the pre-screen answers for the home the prospect wants: whether they will use a housing voucher, and if so the agency, the voucher's bedroom size and its expiration date, plus how many people will live in the home. Call it again as answers come in. Follow the returned instruction exactly: send the application link only when it says send_link.",
+    input_schema: {
+      type: "object",
+      properties: {
+        property_id: { type: "string" },
+        has_voucher: { type: "boolean", description: "true if they will pay with a housing voucher (Section 8 / HCV), false if paying without one" },
+        voucher_agency: { type: "string", description: "Agency that issued the voucher, e.g. CMHA" },
+        voucher_bedrooms: { type: "integer", description: "Bedroom size printed on the voucher" },
+        voucher_expiration: { type: "string", description: "Voucher expiration date, YYYY-MM-DD" },
+        household_size: { type: "integer", description: "People who will live in the home" },
+      },
+      required: ["property_id"],
       additionalProperties: false,
     },
   },
@@ -210,7 +229,7 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         saved: true,
         still_missing: missing,
         instruction:
-          "Do NOT tell the prospect whether they qualify, are eligible, are over or under any limit, or fit a unit size. Thank them, say the FGW team reviews every household and will follow up, ask for anything still missing, and send the application link (tours come after the FGW team approves the application).",
+          "Do NOT tell the prospect whether they qualify, are eligible, are over or under any limit, or fit a unit size. Thank them, say the FGW team reviews every household and will follow up, ask for anything still missing, and run the voucher pre-screen (record_voucher_prescreen) before sending the application link. Tours come after the FGW team approves the application.",
       });
     }
 
@@ -301,6 +320,64 @@ export async function runLeasingTool(prospectId: string, name: string, input: In
         when: whenLocal,
         instruction:
           "Tell the prospect their tour REQUEST for this time is in, and that someone from the FGW team will text to confirm it. Never say the tour is booked, scheduled or confirmed, and never share an address detail, lockbox or entry code beyond the street address.",
+      });
+    }
+
+    case "record_voucher_prescreen": {
+      const propertyId = s(input.property_id);
+      if (!propertyId) return "Error: property_id required.";
+      const prop = await prisma.property.findUnique({
+        where: { id: propertyId },
+        include: { units: { where: { status: "AVAILABLE" }, select: { bedrooms: true, availableDate: true } } },
+      });
+      if (!prop) return "Error: unknown property_id.";
+      if (!prop.units.length) return "Error: this home has no available units. Tell them it has been rented and offer the open homes nearby.";
+      const exp = s(input.voucher_expiration);
+      const expDate = exp && !Number.isNaN(Date.parse(exp)) ? new Date(exp) : undefined;
+      const hv = b(input.has_voucher);
+      const before = await prisma.prospect.findUniqueOrThrow({ where: { id: prospectId } });
+      const merged = {
+        hasVoucher: hv ?? before.hasVoucher,
+        voucherAgency: s(input.voucher_agency) ?? before.voucherAgency,
+        voucherBedrooms: n(input.voucher_bedrooms) ?? before.voucherBedrooms,
+        voucherExpires: expDate ?? before.voucherExpires,
+        householdSize: n(input.household_size) ?? before.householdSize,
+      };
+      const dates = prop.units.map((u) => u.availableDate).filter((d): d is Date => Boolean(d));
+      const res = evaluatePrescreen(merged, {
+        name: prop.name,
+        bedrooms: prop.units.map((u) => u.bedrooms),
+        availableDate: dates.length === prop.units.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null,
+      });
+      const forStephen = res.outcome === "HOLD" || res.flags.length > 0;
+      await prisma.prospect.update({
+        where: { id: prospectId },
+        data: {
+          ...merged,
+          propertyId,
+          prescreen: res.summary,
+          status: res.outcome === "SEND_LINK" ? "APPLYING" : before.status === "NEW" ? "PRESCREENED" : undefined,
+          needsHuman: forStephen ? true : undefined,
+          escalationReason: forStephen ? `For Stephen: ${res.summary}` : undefined,
+        },
+      });
+      if (res.outcome === "ASK")
+        return JSON.stringify({
+          instruction: "ask_for_missing",
+          still_missing: res.missing,
+          note: "Do not send the application link yet. Ask for the missing items, one or two at a time, then call this tool again.",
+        });
+      if (res.outcome === "HOLD")
+        return JSON.stringify({
+          instruction: "hold_link",
+          reasons: res.holdReasons,
+          note: "Do NOT send the application link. Kindly tell them, in plain words, what doesn't line up yet (the reasons above), that they should not pay any application fee yet, and that Stephen with FGW will review it and follow up. Never say they are denied, rejected or don't qualify. You may offer other open homes whose bedroom count matches their voucher.",
+        });
+      return JSON.stringify({
+        instruction: "send_link",
+        application_url: prop.applicationUrl,
+        application_fee: prop.applicationFee,
+        note: "Send the application link now with the fee ($30 per adult; every adult who will live there applies). Say showings are set up after the application is submitted and approved.",
       });
     }
 

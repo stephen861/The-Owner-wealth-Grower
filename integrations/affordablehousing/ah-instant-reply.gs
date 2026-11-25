@@ -4,8 +4,9 @@
  * Runs inside the fgwleasing@gmail.com Google account (Apps Script), every minute.
  *  - "New Renter Lead for ..." emails carry the prospect's relay email and phone.
  *    For homes in HOMES below, the prospect gets an email right away naming the
- *    home, sending the ApplyNow link ($30 per adult) and saying tours are set up
- *    after the application is approved. Questions go to 614-820-5332.
+ *    home and asking the four voucher pre-screen questions by text to
+ *    614-820-5332. The texting agent checks the answers, then sends the
+ *    application link ($30 per adult). Tours come after approval.
  *    Once they text, the leasing agent takes over (inbound first, so it's
  *    covered by the texting registration). We never text them first.
  *  - "New Prospect Message Alert for ..." emails have no email or phone, and
@@ -35,8 +36,7 @@ const CONFIG = {
   SHEET_TAB: 'AffordableHousing leads',
   AGENT_TAB: 'Texting agent leads',  // one row per prospect, updated in place
   AGENT_NUMBER: '614-820-5332',
-  // Application first: every lead gets the ApplyNow link; tours come after approval.
-  APPLY_URL: 'https://fgwi.twa.rentmanager.com/applynow',
+  // Voucher pre-screen by text first, then the application link; tours after approval.
   APP_FEE: '$30 per adult',
   FROM_NAME: 'FGW Property Management',
   TIMEZONE: 'America/New_York',
@@ -121,14 +121,18 @@ function buildReply_(name, home, facts, message) {
   const first = (name || '').split(/\s+/)[0] || 'there';
   const asked = message ? '\n\nWe got your message and can answer your questions by text too.' : '';
   return {
-    subject: 'Applying for ' + home,
+    subject: 'Next step for ' + home,
     body:
       'Hi ' + first + ',\n\n' +
       'Thanks for your interest in ' + home + '. It\'s ' + facts + '.\n\n' +
-      'The first step is the application: ' + CONFIG.APPLY_URL + ' (' + CONFIG.APP_FEE +
-      ', paid when you submit). Once your application is submitted and approved, our team will ' +
-      'reach out to schedule a showing.\n\n' +
-      'Questions? Text ' + CONFIG.AGENT_NUMBER + ' anytime.' +
+      'Before you apply, text ' + CONFIG.AGENT_NUMBER + ' with these quick answers so we can make sure ' +
+      'the home fits before you pay the ' + CONFIG.APP_FEE + ' application fee:\n' +
+      '1. Will you use a housing voucher (Section 8)? If yes, which agency issued it?\n' +
+      '2. What bedroom size is on your voucher?\n' +
+      '3. When does your voucher expire?\n' +
+      '4. How many people will live in the home?\n\n' +
+      'Paying without a voucher? Just answer 1 and 4. We\'ll text you the application link right away. ' +
+      'Showings are set up after your application is submitted and approved.' +
       asked + '\n\n' +
       CONFIG.FROM_NAME + '\n' + CONFIG.AGENT_NUMBER + '\n',
   };

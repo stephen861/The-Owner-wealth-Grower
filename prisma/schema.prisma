@@ -252,6 +252,11 @@ model Prospect {
   householdSize   Int?
   annualIncome    Float?
   hasVoucher      Boolean?
+  voucherAgency   String?   // e.g. CMHA (voucher pre-screen)
+  voucherBedrooms Int?
+  voucherExpires  DateTime?
+  prescreen       String?   // last pre-screen summary, logged to Rent Manager
+  rmSyncedPrescreen String? // pre-screen summary last written to Rent Manager
   bedroomsWanted  Int?
   moveInDate      DateTime?
   propertyId      String?

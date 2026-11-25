@@ -8,7 +8,9 @@
  * RM_SYNC_MODE: "live" (default; the owner said yes on Nov 18, 2026) writes every texting prospect;
  *               "test" writes only numbers in LEASING_TEST_NUMBERS; "off" writes nothing.
  * Never blocks or breaks a reply: failures are logged and dropped.
- * No income, household, voucher or credit details are sent (no-screening rule).
+ * The voucher pre-screen summary (voucher yes/no, agency, bedroom size, expiration,
+ * household size, outcome) is written to the prospect's Comment (owner's rule, Nov 25 2026).
+ * No income or credit details are sent.
  */
 import { prisma } from "@/lib/prisma";
 import { testNumbers } from "./twilio";
@@ -128,6 +130,19 @@ function shouldWrite(phone: string | null): boolean {
 
 /** Fire-and-forget: create this prospect in Rent Manager once (every texting lead unless RM_SYNC_MODE=test or off). */
 const inFlight = new Set<string>();
+type CommentFields = { source: string | null; property?: { name: string } | null; bedroomsWanted: number | null; moveInDate: Date | null; prescreen: string | null };
+
+/** The Comment on the Rent Manager prospect: lead basics plus the latest voucher pre-screen. */
+export function prospectComment(p: CommentFields): string {
+  return [
+    `Texting leasing agent lead (${p.source ?? "SMS"}).`,
+    p.property?.name ? `Interested in: ${p.property.name}.` : "",
+    p.bedroomsWanted ? `Bedrooms: ${p.bedroomsWanted}.` : "",
+    p.moveInDate ? `Move-in: ${p.moveInDate.toISOString().slice(0, 10)}.` : "",
+    p.prescreen ?? "",
+  ].filter(Boolean).join(" ");
+}
+
 export function syncProspectToRentManager(prospectId: string): void {
   if (inFlight.has(prospectId)) return; // a write for this prospect is already running
   inFlight.add(prospectId);
@@ -142,12 +157,17 @@ export function syncProspectToRentManager(prospectId: string): void {
         if (p.name && p.name !== p.rmSyncedName) Object.assign(patch, splitName(p.name, p.phone));
         const wanted = await findPropertyId(p.property?.name).catch(() => null);
         if (wanted && wanted !== p.rmPropertyId) patch.PropertyID = wanted;
+        if (p.prescreen && p.prescreen !== p.rmSyncedPrescreen) patch.Comment = prospectComment(p);
         if (Object.keys(patch).length) {
           const u = await rm(`/Prospects`, { method: "POST", body: JSON.stringify([{ ProspectID: p.rmProspectId, ...patch }]) });
           if (u.status < 300) {
             await prisma.prospect.update({
               where: { id: prospectId },
-              data: { ...(patch.FirstName ? { rmSyncedName: p.name } : {}), ...(patch.PropertyID ? { rmPropertyId: wanted } : {}) },
+              data: {
+                ...(patch.FirstName ? { rmSyncedName: p.name } : {}),
+                ...(patch.PropertyID ? { rmPropertyId: wanted } : {}),
+                ...(patch.Comment ? { rmSyncedPrescreen: p.prescreen } : {}),
+              },
             });
             console.info("[rentmanager] prospect updated", { rmProspectId: p.rmProspectId, name: Boolean(patch.FirstName), moved: Boolean(patch.PropertyID) });
           } else console.error("[rentmanager] prospect update failed", u.status, u.text.slice(0, 300));
@@ -155,12 +175,7 @@ export function syncProspectToRentManager(prospectId: string): void {
         return;
       }
       const ls = await findLeadSourceId().catch(() => null);
-      const comment = [
-        `Texting leasing agent lead (${p.source ?? "SMS"}).`,
-        p.property?.name ? `Interested in: ${p.property.name}.` : "",
-        p.bedroomsWanted ? `Bedrooms: ${p.bedroomsWanted}.` : "",
-        p.moveInDate ? `Move-in: ${p.moveInDate.toISOString().slice(0, 10)}.` : "",
-      ].filter(Boolean).join(" ");
+      const comment = prospectComment(p);
       const names = splitName(p.name, p.phone);
       const [cell, propertyId] = await Promise.all([
         findCellPhoneTypeId().catch(() => null),
@@ -180,7 +195,7 @@ export function syncProspectToRentManager(prospectId: string): void {
       }
       const created = Array.isArray(r.data) ? (r.data[0] as { ProspectID?: number }) : (r.data as { ProspectID?: number });
       const id = created?.ProspectID;
-      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id, rmSyncedName: p.name ?? null, rmPropertyId: propertyId ?? null } });
+      if (id) await prisma.prospect.update({ where: { id: prospectId }, data: { rmProspectId: id, rmSyncedName: p.name ?? null, rmPropertyId: propertyId ?? null, rmSyncedPrescreen: p.prescreen ?? null } });
       console.info("[rentmanager] prospect created", { rmProspectId: id ?? null, leadSource: ls ? LEAD_SOURCE_NAME : "none" });
     } catch (err) {
       console.error("[rentmanager] sync error", (err as Error).message);

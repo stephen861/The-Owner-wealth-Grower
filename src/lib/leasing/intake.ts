@@ -2,8 +2,11 @@
 //
 // FGW standing rule: the AI agent ONLY collects information and flags what is
 // missing. It never approves, denies, pre-qualifies, excludes or gates a tour
-// on income, credit, background or occupancy. Stephen / Robin review every
-// household and make every decision. Keep this file free of any eligibility math.
+// on income, credit, background or occupancy. Stephen reviews every
+// household and makes every decision. Keep this file free of any eligibility math.
+// The one check before the application link is the voucher pre-screen in
+// prescreen.ts (owner's rule, Nov 25 2026): voucher facts only, and it holds
+// the link for Stephen rather than turning anyone away.
 
 /** Statuses the AI agent may set. Decision statuses (e.g. NOT_ELIGIBLE, LEASED) are staff-only. */
 export const AGENT_STATUSES = ["NEW", "PRESCREENED", "TOUR_SCHEDULED", "APPLYING", "WAITLIST"] as const;
