@@ -4,7 +4,8 @@
  * Runs inside the fgwleasing@gmail.com Google account (Apps Script), every minute.
  *  - "New Renter Lead for ..." emails carry the prospect's relay email and phone.
  *    For homes in HOMES below, the prospect gets an email right away naming the
- *    home, offering two tour times and asking them to text 614-820-5332.
+ *    home, sending the ApplyNow link ($30 per adult) and saying tours are set up
+ *    after the application is approved. Questions go to 614-820-5332.
  *    Once they text, the leasing agent takes over (inbound first, so it's
  *    covered by the texting registration). We never text them first.
  *  - "New Prospect Message Alert for ..." emails have no email or phone, and
@@ -34,6 +35,9 @@ const CONFIG = {
   SHEET_TAB: 'AffordableHousing leads',
   AGENT_TAB: 'Texting agent leads',  // one row per prospect, updated in place
   AGENT_NUMBER: '614-820-5332',
+  // Application first: every lead gets the ApplyNow link; tours come after approval.
+  APPLY_URL: 'https://fgwi.twa.rentmanager.com/applynow',
+  APP_FEE: '$30 per adult',
   FROM_NAME: 'FGW Property Management',
   TIMEZONE: 'America/New_York',
   DONE_LABEL: 'AH-processed',
@@ -115,31 +119,19 @@ function handleMessageAlert_(msg) {
 
 function buildReply_(name, home, facts, message) {
   const first = (name || '').split(/\s+/)[0] || 'there';
-  const slots = nextTourSlots_();
   const asked = message ? '\n\nWe got your message and can answer your questions by text too.' : '';
   return {
-    subject: 'Touring ' + home,
+    subject: 'Applying for ' + home,
     body:
       'Hi ' + first + ',\n\n' +
       'Thanks for your interest in ' + home + '. It\'s ' + facts + '.\n\n' +
-      'I can show it ' + slots + '. Text ' + CONFIG.AGENT_NUMBER +
-      ' with the time that works for you, or suggest another time, and we\'ll get you on the schedule.' +
+      'The first step is the application: ' + CONFIG.APPLY_URL + ' (' + CONFIG.APP_FEE +
+      ', paid when you submit). Once your application is submitted and approved, our team will ' +
+      'reach out to schedule a showing.\n\n' +
+      'Questions? Text ' + CONFIG.AGENT_NUMBER + ' anytime.' +
       asked + '\n\n' +
       CONFIG.FROM_NAME + '\n' + CONFIG.AGENT_NUMBER + '\n',
   };
-}
-
-// Tour hours match the agent: Mon-Sat 9:00-17:30. Offer the next tour day that
-// is at least 18 hours away, at 11:00 AM and 4:00 PM. George still confirms.
-function nextTourSlots_() {
-  const d = new Date(Date.now() + 18 * 3600 * 1000);
-  for (let i = 0; i < 7; i++) {
-    const dow = Number(Utilities.formatDate(d, CONFIG.TIMEZONE, 'u')); // 1=Mon..7=Sun
-    if (dow !== 7) break;
-    d.setTime(d.getTime() + 24 * 3600 * 1000);
-  }
-  const day = Utilities.formatDate(d, CONFIG.TIMEZONE, 'EEEE, MMM d');
-  return day + ' at 11:00 AM or 4:00 PM';
 }
 
 function log_(row) {
